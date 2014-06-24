@@ -1,5 +1,16 @@
+%{
+	#include <stdio.h>
+    #define PRINT(X) fputs (X, pFile);	 	
+    #define FILENAME "myfile.txt"
+  
+	FILE *pFile;
+  	short int errores = 0;		
+%}
+
+%union {char *id;}
+
 /* precedencia en orden en que aparecen tokens, de menor (arriba) a mayor (abajo) */
-%token	IDENTIFIER I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
+%token	<id> IDENTIFIER I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
 %token	PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
 %token	AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
 %token	SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
@@ -17,25 +28,18 @@
 %token	ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
 %start translation_unit     /* define el start symbol */
-
-%{
-    #include <stdio.h>
-    #define PRINT(X) fputs (X, pFile);
-    FILE * pFile;
-%}
-
 %%
 
 primary_expression
-	: IDENTIFIER { PRINT("id") }
-	| constant { PRINT("constant"); }
+	: IDENTIFIER
+	| constant
 	| string
 	| '(' expression ')'
 	| generic_selection
 	;
 
 constant
-	: I_CONSTANT /* includes character_constant */
+	: I_CONSTANT    /* includes character_constant */
 	| F_CONSTANT
 	| ENUMERATION_CONSTANT	/* after it has been defined as such */
 	;
@@ -60,11 +64,11 @@ right_bracket
 	: ']' { PRINT("]") }
 	;
 	
-left_brace
+left_curly
 	: '{' { PRINT("{") }
 	;
 	
-right_brace
+right_curly
 	: '}' { PRINT("}") }
 	;					
 
@@ -559,7 +563,7 @@ declaration_list
 
 int main(){
     
-    pFile = fopen ("myfile.txt" , "w");
+    pFile = fopen (FILENAME , "w");
     if (pFile == NULL) perror ("Error al abrir el archivo");
     fputs ("<?php\n\n", pFile);
     
@@ -568,11 +572,20 @@ int main(){
     fputs ("\n\n?>", pFile);
     fclose (pFile);
     
+    if (errores > 0){
+	    if( remove( FILENAME ) != 0 )
+		  	perror( "Error al intentar eliminar el archivo" );
+  		else
+  		    printf("%d errores detectados", errores);
+            puts( "No se generará traducción. Archivo eliminado exitosamente" );		
+	}
+    
     return 0;
 }
 
 int yyerror (char const *message) {
   fputs(message, stderr);
   fputc('\n', stderr);
+  errores++;
   return 0;
 }

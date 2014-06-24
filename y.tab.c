@@ -66,15 +66,18 @@
 /* Copy the first part of user declarations.  */
 
 /* Line 268 of yacc.c  */
-#line 20 "c-grammar.y"
+#line 1 "c-grammar.y"
 
-    #include <stdio.h>
-    #define PRINT(X) fputs (X, pFile);
-    FILE * pFile;
+	#include <stdio.h>
+    #define PRINT(X) fputs (X, pFile);	 	
+    #define FILENAME "myfile.txt"
+  
+	FILE *pFile;
+  	short int errores = 0;		
 
 
 /* Line 268 of yacc.c  */
-#line 78 "y.tab.c"
+#line 81 "y.tab.c"
 
 /* Enabling traces.  */
 #ifndef YYDEBUG
@@ -255,7 +258,17 @@
 
 
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-typedef int YYSTYPE;
+typedef union YYSTYPE
+{
+
+/* Line 293 of yacc.c  */
+#line 10 "c-grammar.y"
+char *id;
+
+
+/* Line 293 of yacc.c  */
+#line 271 "y.tab.c"
+} YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
@@ -266,7 +279,7 @@ typedef int YYSTYPE;
 
 
 /* Line 343 of yacc.c  */
-#line 270 "y.tab.c"
+#line 283 "y.tab.c"
 
 #ifdef short
 # undef short
@@ -678,34 +691,34 @@ static const yytype_int16 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,    29,    29,    30,    31,    32,    33,    37,    38,    39,
-      43,    47,    51,    71,    72,    76,    80,    81,    85,    86,
-      90,    91,    92,    93,    94,    95,    96,    97,    98,    99,
-     103,   104,   108,   109,   110,   111,   112,   113,   114,   118,
-     119,   120,   121,   122,   123,   127,   128,   132,   133,   134,
-     135,   139,   140,   141,   145,   146,   147,   151,   152,   153,
-     154,   155,   159,   160,   161,   165,   166,   170,   171,   175,
-     176,   180,   181,   185,   186,   190,   191,   195,   196,   200,
-     201,   202,   203,   204,   205,   206,   207,   208,   209,   210,
-     214,   215,   219,   223,   224,   225,   229,   230,   231,   232,
-     233,   234,   235,   236,   237,   238,   242,   243,   247,   248,
-     252,   253,   254,   255,   256,   257,   261,   262,   263,   264,
-     265,   266,   267,   268,   269,   270,   271,   272,   273,   274,
-     275,   276,   280,   281,   282,   286,   287,   291,   292,   296,
-     297,   298,   302,   303,   304,   305,   309,   310,   314,   315,
-     316,   320,   321,   322,   323,   324,   328,   329,   333,   334,
-     338,   342,   343,   344,   345,   349,   350,   354,   355,   359,
-     360,   364,   365,   366,   367,   368,   369,   370,   371,   372,
-     373,   374,   375,   376,   377,   381,   382,   383,   384,   388,
-     389,   394,   395,   399,   400,   404,   405,   406,   410,   411,
-     415,   416,   420,   421,   422,   426,   427,   428,   429,   430,
-     431,   432,   433,   434,   435,   436,   437,   438,   439,   440,
-     441,   442,   443,   444,   445,   446,   450,   451,   452,   456,
-     457,   458,   459,   463,   467,   468,   472,   473,   477,   481,
-     482,   483,   484,   485,   486,   490,   491,   492,   496,   497,
-     501,   502,   506,   507,   511,   512,   516,   517,   518,   522,
-     522,   523,   524,   525,   526,   527,   531,   532,   533,   534,
-     535,   539,   540,   544,   545,   549,   550,   553,   554
+       0,    34,    34,    35,    36,    37,    38,    42,    43,    44,
+      48,    52,    56,    76,    77,    81,    85,    86,    90,    91,
+      95,    96,    97,    98,    99,   100,   101,   102,   103,   104,
+     108,   109,   113,   114,   115,   116,   117,   118,   119,   123,
+     124,   125,   126,   127,   128,   132,   133,   137,   138,   139,
+     140,   144,   145,   146,   150,   151,   152,   156,   157,   158,
+     159,   160,   164,   165,   166,   170,   171,   175,   176,   180,
+     181,   185,   186,   190,   191,   195,   196,   200,   201,   205,
+     206,   207,   208,   209,   210,   211,   212,   213,   214,   215,
+     219,   220,   224,   228,   229,   230,   234,   235,   236,   237,
+     238,   239,   240,   241,   242,   243,   247,   248,   252,   253,
+     257,   258,   259,   260,   261,   262,   266,   267,   268,   269,
+     270,   271,   272,   273,   274,   275,   276,   277,   278,   279,
+     280,   281,   285,   286,   287,   291,   292,   296,   297,   301,
+     302,   303,   307,   308,   309,   310,   314,   315,   319,   320,
+     321,   325,   326,   327,   328,   329,   333,   334,   338,   339,
+     343,   347,   348,   349,   350,   354,   355,   359,   360,   364,
+     365,   369,   370,   371,   372,   373,   374,   375,   376,   377,
+     378,   379,   380,   381,   382,   386,   387,   388,   389,   393,
+     394,   399,   400,   404,   405,   409,   410,   411,   415,   416,
+     420,   421,   425,   426,   427,   431,   432,   433,   434,   435,
+     436,   437,   438,   439,   440,   441,   442,   443,   444,   445,
+     446,   447,   448,   449,   450,   451,   455,   456,   457,   461,
+     462,   463,   464,   468,   472,   473,   477,   478,   482,   486,
+     487,   488,   489,   490,   491,   495,   496,   497,   501,   502,
+     506,   507,   511,   512,   516,   517,   521,   522,   523,   527,
+     527,   528,   529,   530,   531,   532,   536,   537,   538,   539,
+     540,   544,   545,   549,   550,   554,   555,   558,   559
 };
 #endif
 
@@ -2376,73 +2389,38 @@ yyreduce:
   YY_REDUCE_PRINT (yyn);
   switch (yyn)
     {
-        case 2:
+        case 11:
 
 /* Line 1806 of yacc.c  */
-#line 29 "c-grammar.y"
-    { PRINT("1") }
-    break;
-
-  case 3:
-
-/* Line 1806 of yacc.c  */
-#line 30 "c-grammar.y"
-    { PRINT("2"); }
-    break;
-
-  case 4:
-
-/* Line 1806 of yacc.c  */
-#line 31 "c-grammar.y"
-    { PRINT("3"); }
-    break;
-
-  case 5:
-
-/* Line 1806 of yacc.c  */
-#line 32 "c-grammar.y"
-    { PRINT("4"); }
-    break;
-
-  case 6:
-
-/* Line 1806 of yacc.c  */
-#line 33 "c-grammar.y"
-    { PRINT("5"); }
-    break;
-
-  case 11:
-
-/* Line 1806 of yacc.c  */
-#line 47 "c-grammar.y"
+#line 52 "c-grammar.y"
     { PRINT("(") }
     break;
 
   case 12:
 
 /* Line 1806 of yacc.c  */
-#line 51 "c-grammar.y"
+#line 56 "c-grammar.y"
     { PRINT(")") }
     break;
 
   case 14:
 
 /* Line 1806 of yacc.c  */
-#line 72 "c-grammar.y"
+#line 77 "c-grammar.y"
     { PRINT("function") }
     break;
 
   case 259:
 
 /* Line 1806 of yacc.c  */
-#line 522 "c-grammar.y"
+#line 527 "c-grammar.y"
     { PRINT("\nwhile") }
     break;
 
 
 
 /* Line 1806 of yacc.c  */
-#line 2446 "y.tab.c"
+#line 2424 "y.tab.c"
       default: break;
     }
   /* User semantic actions sometimes alter yychar, and that requires
@@ -2673,12 +2651,12 @@ yyreturn:
 
 
 /* Line 2067 of yacc.c  */
-#line 557 "c-grammar.y"
+#line 562 "c-grammar.y"
 
 
 int main(){
     
-    pFile = fopen ("myfile.txt" , "w");
+    pFile = fopen (FILENAME , "w");
     if (pFile == NULL) perror ("Error al abrir el archivo");
     fputs ("<?php\n\n", pFile);
     
@@ -2687,12 +2665,21 @@ int main(){
     fputs ("\n\n?>", pFile);
     fclose (pFile);
     
+    if (errores > 0){
+	    if( remove( FILENAME ) != 0 )
+		  	perror( "Error al intentar eliminar el archivo" );
+  		else
+  		    printf("%d errores detectados", errores);
+            puts( "No se generará traducción. Archivo eliminado exitosamente" );		
+	}
+    
     return 0;
 }
 
 int yyerror (char const *message) {
   fputs(message, stderr);
   fputc('\n', stderr);
+  errores++;
   return 0;
 }
 
