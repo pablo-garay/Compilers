@@ -14,6 +14,7 @@
 
 typedef struct {
 	char name[MAX_CHAR];
+	unsigned int type;
 } element;
 
 typedef struct hash_entry* list_pointer;

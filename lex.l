@@ -24,6 +24,8 @@ WS  [ \t\v\n\f]
 %{
 #include <stdio.h>
 #include "y.tab.h"
+#include "c-grammar.h"
+#include "utils.h"
 
 extern void yyerror(const char *);  /* prints grammar violation message */
 
@@ -85,23 +87,22 @@ static int check_type(void);
 "_Thread_local"                         { return THREAD_LOCAL; }
 "__func__"                              { return FUNC_NAME; }
 
-{L}{A}*					{ return check_type(); }
+{L}{A}*					{ yylval.idval = strdup(yytext); return check_type(); }
 
-{HP}{H}+{IS}?				{ return I_CONSTANT; }
-{NZ}{D}*{IS}?				{ yylval.id = yytext;
-					          return I_CONSTANT; }
+{HP}{H}+{IS}?				{ yylval.constval = strdup(yytext); return I_CONSTANT; }
+{NZ}{D}*{IS}?				{ yylval.constval = strdup(yytext); return I_CONSTANT; }
 					          
-"0"{O}*{IS}?				{ return I_CONSTANT; }
-{CP}?"'"([^'\\\n]|{ES})+"'"		{ return I_CONSTANT; }
+"0"{O}*{IS}?				{ yylval.constval = strdup(yytext); return I_CONSTANT; }
+{CP}?"'"([^'\\\n]|{ES})+"'"		{ yylval.constval = strdup(yytext); return I_CONSTANT; }
 
-{D}+{E}{FS}?				{ return F_CONSTANT; }
-{D}*"."{D}+{E}?{FS}?			{ return F_CONSTANT; }
-{D}+"."{E}?{FS}?			{ return F_CONSTANT; }
-{HP}{H}+{P}{FS}?			{ return F_CONSTANT; }
-{HP}{H}*"."{H}+{P}{FS}?			{ return F_CONSTANT; }
-{HP}{H}+"."{P}{FS}?			{ return F_CONSTANT; }
+{D}+{E}{FS}?				{ yylval.constval = strdup(yytext); return F_CONSTANT; }
+{D}*"."{D}+{E}?{FS}?		{ yylval.constval = strdup(yytext); return F_CONSTANT; }
+{D}+"."{E}?{FS}?			{ yylval.constval = strdup(yytext); return F_CONSTANT; }
+{HP}{H}+{P}{FS}?			{ yylval.constval = strdup(yytext); return F_CONSTANT; }
+{HP}{H}*"."{H}+{P}{FS}?		{ yylval.constval = strdup(yytext); return F_CONSTANT; }
+{HP}{H}+"."{P}{FS}?			{ yylval.constval = strdup(yytext); return F_CONSTANT; }
 
-({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+	{ return STRING_LITERAL; }
+({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+	{ yylval.strval = strdup(yytext); return STRING_LITERAL; }
 
 "..."					{ return ELLIPSIS; }
 ">>="					{ return RIGHT_ASSIGN; }
@@ -150,7 +151,7 @@ static int check_type(void);
 "|"					{ return '|'; }
 "?"					{ return '?'; }
 
-{WS}					{ /* whitespace separates tokens */ }
+{WS}				{ PRINT(yytext); /* whitespace separates tokens */ }
 .					{ /* discard bad characters */ }
 
 %%
@@ -183,11 +184,11 @@ static int check_type(void)
 {
     switch (sym_type(yytext))
     {
-    case TYPEDEF_NAME:                /* previously defined */
-        return TYPEDEF_NAME;
-    case ENUMERATION_CONSTANT:        /* previously defined */
-        return ENUMERATION_CONSTANT;
-    default:                          /* includes undefined */
-        return IDENTIFIER;
+        case TYPEDEF_NAME:                /* previously defined */
+            return TYPEDEF_NAME;
+        case ENUMERATION_CONSTANT:        /* previously defined */
+            return ENUMERATION_CONSTANT;
+        default:                          /* includes undefined */
+            return IDENTIFIER;
     }
 }

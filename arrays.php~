@@ -1,0 +1,7 @@
+<?php
+
+$hola = array(array());
+
+print_r($hola);
+
+?>

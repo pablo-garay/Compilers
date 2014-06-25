@@ -1,14 +1,16 @@
+<?php
 
-int global1, global2 = 10;
 
-int main(int a, int b){
+ global1, global2 = 10;
 
-    int result = a > b ? x : y;
+ mainfunction ( a , b){
 
-    int a = 5;
-    int a[10][20];
+     result = a > b ? x : y;
+
+     a = 5;
+     a1020;
     
-    while(0) ab = 10;
+    while(0)  ab= 10;
     
     while(1){
      
@@ -18,6 +20,7 @@ int main(int a, int b){
     
     if (3 > 1) puts("hello world!");
     hola();
+    hola(a, 1, 2);
     
     switch( i ) 
     {
@@ -34,5 +37,8 @@ int main(int a, int b){
             break;
     }
     
-    return 0;
+     return 0;
 }
+
+
+?>

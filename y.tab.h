@@ -195,12 +195,16 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 10 "c-grammar.y"
-char *id;
+#line 8 "c-grammar.y"
+
+        char *idval;
+        char *constval;
+        char *strval;
+        
 
 
 /* Line 2068 of yacc.c  */
-#line 204 "y.tab.h"
+#line 208 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
