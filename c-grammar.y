@@ -32,8 +32,17 @@
 %start translation_unit     /* define el start symbol */
 %%
 
+identifier
+    : IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
+	                          if (yychar == '(') PRINT("function "); /* function */
+	                          else PRINT("$");                       /* var */
+	                          PRINT($1); free($1); }
+    ;
+
 primary_expression
-	: IDENTIFIER            { PRINT($1); puts(yylval.idval); free($1); }      
+	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
+	                          if (yychar != '(')  PRINT("$");        /* not a function call */
+	                          PRINT($1); free($1); }    
 	| constant              
 	| string
 	| '(' expression ')'
@@ -372,7 +381,7 @@ declarator
 	;
 
 direct_declarator
-	: IDENTIFIER            { PRINT($1); free($1); }
+	: identifier
 	| '(' declarator ')'
 	| direct_declarator '[' ']'
 	| direct_declarator '[' '*' ']'
@@ -383,8 +392,8 @@ direct_declarator
 	| direct_declarator '[' type_qualifier_list assignment_expression ']'
 	| direct_declarator '[' type_qualifier_list ']'
 	| direct_declarator '[' assignment_expression ']'
-	| direct_declarator '(' { PRINT("function ("); } parameter_type_list ')' { PRINT(")"); }
-	| direct_declarator '(' ')' { PRINT("function ()"); }
+	| direct_declarator '(' { PRINT("("); } parameter_type_list ')' { PRINT(")"); }
+	| direct_declarator '(' ')' { PRINT("()"); }
 	| direct_declarator '(' identifier_list ')'
 	;
 
@@ -523,13 +532,13 @@ expression_statement
 	| expression ';' { PRINT(";"); }
 	;
 	
-if_token
+if
     : IF { PRINT("if"); }
     ;	
 
 selection_statement
-	: if_token left_parenthesis expression right_parenthesis statement ELSE { PRINT("else"); } statement
-	| if_token left_parenthesis expression right_parenthesis statement
+	: if left_parenthesis expression right_parenthesis statement ELSE { PRINT("else"); } statement
+	| if left_parenthesis expression right_parenthesis statement
 	| SWITCH { PRINT("switch"); } left_parenthesis expression right_parenthesis statement
 	;
 

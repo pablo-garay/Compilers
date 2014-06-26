@@ -1,16 +1,16 @@
 <?php
 
 
- global1, global2 = 10;
+ $global1,  $global2= 10;
 
- mainfunction ( a , b){
+ function main( $a , $b){
 
-     result = a > b ? x : y;
+      $result=  $a>  $b?  $x: $y;
 
-     a = 5;
-     a1020;
+      $a= 5;
+     $a1020;
     
-    while(0)  ab= 10;
+    while(0)  $ab= 10;
     
     while(1){
      
@@ -20,18 +20,18 @@
     
     if (3 > 1) puts("hello world!");
     hola();
-    hola(a, 1, 2);
+    hola($a, 1, 2);
     
-    switch( i ) 
+    switch(  $i) 
     {
         case -1:
-            n++;
+            $n++;
             break;
         case 0 :
-            z++;
+            $z++;
             break;
         case 1 :
-            p++;
+            $p++;
             break;
         default:
             break;
@@ -39,6 +39,9 @@
     
      return 0;
 }
+
+ function f();
+ function g();
 
 
 ?>

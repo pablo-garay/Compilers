@@ -18,6 +18,7 @@ int main(int a, int b){
     
     if (3 > 1) puts("hello world!");
     hola();
+    hola(a, 1, 2);
     
     switch( i ) 
     {

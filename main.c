@@ -37,3 +37,6 @@ int main(int a, int b){
     
     return 0;
 }
+
+int f();
+int g();
