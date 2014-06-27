@@ -1,9 +1,11 @@
 
 int global1, global2 = 10;
+int n, p;
 
 int main(int a, int b){
 
     int result = a > b ? x : y;
+    char letter;
 
     int a = 5;
     int a[10][20];
@@ -34,6 +36,8 @@ int main(int a, int b){
         default:
             break;
     }
+    
+    char letter;
     
     return 0;
 }

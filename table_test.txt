@@ -1,0 +1,102 @@
+[0]->global1
+[1]
+[2]
+[3]
+[4]
+[5]
+[6]
+
+ID: global1, TYPE: 299
+[0]->global1
+[1]->global2
+[2]
+[3]
+[4]
+[5]
+[6]
+
+ID: global2, TYPE: 299
+[0]->global1
+[1]->global2
+[2]
+[3]
+[4]
+[5]->n
+[6]
+
+ID: n, TYPE: 299
+[0]->p->global1
+[1]->global2
+[2]
+[3]
+[4]
+[5]->n
+[6]
+
+ID: p, TYPE: 299
+[0]->p->global1
+[1]->global2
+[2]
+[3]
+[4]
+[5]->main->n
+[6]
+
+ID: main, TYPE: 299
+[0]
+[1]
+[2]
+[3]
+[4]
+[5]
+[6]->a
+
+ID: a, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]
+[4]
+[5]
+[6]->a
+
+ID: b, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]
+[4]
+[5]->result
+[6]->a
+
+ID: result, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]
+[4]->letter
+[5]->result
+[6]->a
+
+ID: letter, TYPE: 297
+ID: a, TYPE: 299
+ID: a, TYPE: 299
+ID: letter, TYPE: 297
+[0]->p->global1
+[1]->global2
+[2]
+[3]
+[4]->f
+[5]->main->n
+[6]
+
+ID: f, TYPE: 299
+[0]->p->global1
+[1]->global2
+[2]
+[3]
+[4]->f
+[5]->g->main->n
+[6]
+
+ID: g, TYPE: 299

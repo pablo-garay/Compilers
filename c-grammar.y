@@ -1,6 +1,10 @@
 %{
 	#include <stdio.h>
 	#include "c-grammar.h"
+	#include "symbol_table.h"
+	
+	void begin_local_scope();
+	void end_local_scope();
   	
   	short int errores = 0;		
 %}
@@ -30,18 +34,25 @@
 %token	ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
 %start translation_unit     /* define el start symbol */
-%%
 
-identifier
-    : IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
-	                          if (yychar == '(') PRINT("function "); /* function */
-	                          else PRINT("$");                       /* var */
-	                          PRINT($1); free($1); }
-    ;
+%{
+    /* typedef enum { LOCAL, GLOBAL } scope_type; */
+    /* scope_type scope;                          */
+  	int global_type_specifier = INT;
+  	hash_table_type global_symbol_table, current_scope_symbol_table;	
+%}
+%%
 
 primary_expression
 	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
-	                          if (yychar != '(')  PRINT("$");        /* not a function call */
+	                          if (yychar != '('){ /* not a function call */
+	                            if (!lookup_string($1, current_scope_symbol_table) && !lookup_string($1, global_symbol_table)){
+	                                fprintf (stderr, "Variable no declarada: %s\n", $1);}
+	                            else PRINT("$");        
+	                          }
+	                          else if (!lookup_string($1, global_symbol_table)){ /* function call */
+	                            fprintf(stderr, "Warning: Declaración implícita de la función %s\n", $1);
+	                          }
 	                          PRINT($1); free($1); }    
 	| constant              
 	| string
@@ -260,7 +271,7 @@ declaration_specifiers
 
 init_declarator_list
 	: init_declarator
-	| init_declarator_list ',' { PRINT(","); } init_declarator
+	| init_declarator_list ',' { PRINT(";"); } init_declarator
 	;
 
 init_declarator
@@ -278,13 +289,13 @@ storage_class_specifier
 	;
 
 type_specifier
-	: VOID
-	| CHAR
-	| SHORT
-	| INT
-	| LONG
-	| FLOAT
-	| DOUBLE
+	: VOID          { global_type_specifier = VOID; }
+	| CHAR          { global_type_specifier = CHAR; }
+	| SHORT         { global_type_specifier = SHORT; }
+	| INT           { global_type_specifier = INT; }
+	| LONG          { global_type_specifier = LONG; }
+	| FLOAT         { global_type_specifier = FLOAT; }
+	| DOUBLE        { global_type_specifier = DOUBLE; }
 	| SIGNED
 	| UNSIGNED
 	| BOOL
@@ -381,7 +392,19 @@ declarator
 	;
 
 direct_declarator
-	: identifier
+	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
+	                          if (yychar == '('){
+	                            PRINT("function "); /* function */
+	                            table_insert($1, global_type_specifier, global_symbol_table);
+	                            begin_local_scope();
+	                          }
+	                          else {
+	                            PRINT("$");                       /* var */
+	                            table_insert($1, global_type_specifier, current_scope_symbol_table);
+	                          }
+	                          printf("ID: %s, TYPE: %d\n", $1, global_type_specifier);                          
+	                          PRINT($1); free($1); 
+	                        }
 	| '(' declarator ')'
 	| direct_declarator '[' ']'
 	| direct_declarator '[' '*' ']'
@@ -570,8 +593,8 @@ external_declaration
 	;
 
 function_definition
-	: declaration_specifiers declarator declaration_list compound_statement
-	| declaration_specifiers declarator compound_statement
+	: declaration_specifiers declarator declaration_list compound_statement { end_local_scope(); }
+	| declaration_specifiers declarator compound_statement                  { end_local_scope(); }
 
 declaration_list
 	: declaration
@@ -580,11 +603,25 @@ declaration_list
 
 %%
 
+void begin_local_scope(){
+    /* scope = LOCAL;    */
+    current_scope_symbol_table = create_table(); /* crear symbol table */     
+}
+
+void end_local_scope(){
+    /* scope = GLOBAL;  */
+    free_table(current_scope_symbol_table); /* liberar memoria */    
+    current_scope_symbol_table = global_symbol_table; /* current scope = GLOBAL */     
+}
+
 int main(){
     
     pFile = fopen (FILENAME , "w");
     if (pFile == NULL) perror ("Error al abrir el archivo");
     fputs ("<?php\n\n", pFile);
+    
+    global_symbol_table = create_table(); /* crear symbol table para global scope */
+    current_scope_symbol_table = global_symbol_table; /* current scope = GLOBAL */  
     
     yyparse();
     
@@ -598,6 +635,8 @@ int main(){
   		    printf("%d errores detectados\n", errores);
             puts( "No se generará traducción. Archivo eliminado exitosamente" );		
 	}
+	
+	free_table(global_symbol_table); /* liberar memoria */
     
     return 0;
 }
