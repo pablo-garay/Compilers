@@ -104,7 +104,7 @@ hash_table_type create_table(){
 
 }
 
-void table_insert(char *name, const int type, list_pointer ht[]){
+entry_data table_insert(char *name, const int type, list_pointer ht[]){
 	/* insert the name into the table using chaining */
 
 	int hash_value = hash(name);
@@ -130,7 +130,8 @@ void table_insert(char *name, const int type, list_pointer ht[]){
 
 //	if (trail) trail->link = ptr;
 //	else ht[hash_value] = ptr;
-    print_hash_table(ht, TABLE_SIZE);
+//      print_hash_table(ht, TABLE_SIZE);
+	return ptr->entry;
 }
 
 /* hash function. Tomada del compilador de C de PJ Weinberger */
@@ -177,7 +178,7 @@ list_pointer lookup_string(char *name, list_pointer ht[])
 	for (; lead; trail = lead, lead = lead->link){
 
 		if (!strcmp(lead->entry.name, name)) {
-			fprintf(stderr, "The name is in the table\n");
+			//fprintf(stderr, "The name %s is in the table\n",name);
 			return lead;
 		}
 	}

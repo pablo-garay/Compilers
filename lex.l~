@@ -1,3 +1,4 @@
+%option yylineno
 %e  1019
 %p  2807
 %n  371
@@ -23,8 +24,8 @@ WS  [ \t\v\n\f]
 
 %{
 #include <stdio.h>
-#include "y.tab.h"
 #include "c-grammar.h"
+#include "y.tab.h"
 #include "utils.h"
 
 extern void yyerror(const char *);  /* prints grammar violation message */
@@ -80,29 +81,27 @@ static int check_type(void);
 "_Atomic"                               { return ATOMIC; }
 "_Bool"                                 { return BOOL; }
 "_Complex"                              { return COMPLEX; }
-"_Generic"                              { return GENERIC; }
 "_Imaginary"                            { return IMAGINARY; }
 "_Noreturn"                             { return NORETURN; }
-"_Static_assert"                        { return STATIC_ASSERT; }
 "_Thread_local"                         { return THREAD_LOCAL; }
 "__func__"                              { return FUNC_NAME; }
 
-{L}{A}*					{ yylval.idval = strdup(yytext); return check_type(); }
+{L}{A}*					{ yylval.attribute.value = strdup(yytext); return check_type(); }
 
-{HP}{H}+{IS}?				{ yylval.constval = strdup(yytext); return I_CONSTANT; }
-{NZ}{D}*{IS}?				{ yylval.constval = strdup(yytext); return I_CONSTANT; }
+{HP}{H}+{IS}?				{ yylval.attribute.value = strdup(yytext); return I_CONSTANT; }
+{NZ}{D}*{IS}?				{ yylval.attribute.value = strdup(yytext); return I_CONSTANT; }
 					          
-"0"{O}*{IS}?				{ yylval.constval = strdup(yytext); return I_CONSTANT; }
-{CP}?"'"([^'\\\n]|{ES})+"'"		{ yylval.constval = strdup(yytext); return I_CONSTANT; }
+"0"{O}*{IS}?				{ yylval.attribute.value = strdup(yytext); return I_CONSTANT; }
+{CP}?"'"([^'\\\n]|{ES})+"'"		{ yylval.attribute.value = strdup(yytext); return STRING_LITERAL; }
 
-{D}+{E}{FS}?				{ yylval.constval = strdup(yytext); return F_CONSTANT; }
-{D}*"."{D}+{E}?{FS}?		{ yylval.constval = strdup(yytext); return F_CONSTANT; }
-{D}+"."{E}?{FS}?			{ yylval.constval = strdup(yytext); return F_CONSTANT; }
-{HP}{H}+{P}{FS}?			{ yylval.constval = strdup(yytext); return F_CONSTANT; }
-{HP}{H}*"."{H}+{P}{FS}?		{ yylval.constval = strdup(yytext); return F_CONSTANT; }
-{HP}{H}+"."{P}{FS}?			{ yylval.constval = strdup(yytext); return F_CONSTANT; }
+{D}+{E}{FS}?				{ yylval.attribute.value = strdup(yytext); return F_CONSTANT; }
+{D}*"."{D}+{E}?{FS}?			{ yylval.attribute.value = strdup(yytext); return F_CONSTANT; }
+{D}+"."{E}?{FS}?			{ yylval.attribute.value = strdup(yytext); return F_CONSTANT; }
+{HP}{H}+{P}{FS}?			{ yylval.attribute.value = strdup(yytext); return F_CONSTANT; }
+{HP}{H}*"."{H}+{P}{FS}?			{ yylval.attribute.value = strdup(yytext); return F_CONSTANT; }
+{HP}{H}+"."{P}{FS}?			{ yylval.attribute.value = strdup(yytext); return F_CONSTANT; }
 
-({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+	{ yylval.strval = strdup(yytext); return STRING_LITERAL; }
+({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+	{ yylval.attribute.value = strdup(yytext); return STRING_LITERAL; }
 
 "..."					{ return ELLIPSIS; }
 ">>="					{ return RIGHT_ASSIGN; }
@@ -151,7 +150,7 @@ static int check_type(void);
 "|"					{ return '|'; }
 "?"					{ return '?'; }
 
-{WS}				{ PRINT(yytext); /* whitespace separates tokens */ }
+{WS}					{ PRINT(yytext); /* whitespace separates tokens */ }
 .					{ /* discard bad characters */ }
 
 %%

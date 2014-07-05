@@ -5,18 +5,19 @@
 typedef struct {
 	char *name;
 	int type;
-} node_data;
+	int *input_type;
+} entry_data;
 
 typedef struct node* list_pointer;
 typedef struct node** hash_table_type;
 typedef struct node {
-	node_data entry;
+	entry_data entry;
 	list_pointer link;
 } node;
 
 
 int hash (char *);
-void table_insert(char *name, const int type, list_pointer []);
+entry_data table_insert(char *name, const int type, list_pointer []);
 void print_hash_table(list_pointer [TABLE_SIZE], const int);
 hash_table_type create_table();
 list_pointer lookup_string(char *str, list_pointer ht[]);

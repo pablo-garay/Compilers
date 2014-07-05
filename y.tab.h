@@ -106,10 +106,8 @@
      ALIGNAS = 324,
      ALIGNOF = 325,
      ATOMIC = 326,
-     GENERIC = 327,
-     NORETURN = 328,
-     STATIC_ASSERT = 329,
-     THREAD_LOCAL = 330
+     NORETURN = 327,
+     THREAD_LOCAL = 328
    };
 #endif
 /* Tokens.  */
@@ -182,10 +180,8 @@
 #define ALIGNAS 324
 #define ALIGNOF 325
 #define ATOMIC 326
-#define GENERIC 327
-#define NORETURN 328
-#define STATIC_ASSERT 329
-#define THREAD_LOCAL 330
+#define NORETURN 327
+#define THREAD_LOCAL 328
 
 
 
@@ -195,16 +191,14 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 20 "c-grammar.y"
+#line 25 "c-grammar.y"
 
-        char *idval;
-        char *constval;
-        char *strval;
-        
+   attributes attribute;
+
 
 
 /* Line 2068 of yacc.c  */
-#line 208 "y.tab.h"
+#line 202 "y.tab.h"
 } YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */

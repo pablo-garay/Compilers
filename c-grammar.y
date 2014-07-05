@@ -2,29 +2,32 @@
 	#include <stdio.h>
 	#include "c-grammar.h"
 	#include "symbol_table.h"
-	
-	void yyerror (const char *);
-	char *yytext;
-	
+	#include "int_buffer.h"
+
+	void yyerror (const char *);	
 	void begin_local_scope();
 	void end_local_scope();
 	void check_function_redefinition(char *name);
 	void check_function_declared(char *name);
-	void check_var_declared(char *name);
+	int check_var_declared(char *name);
 	void check_var_redefinition(char *name);
+	int get_type(char *name);
   	
     int print_enabled = TRUE;
-  	short int errores = 0;		
+  	short int errors = 0;	
+	short int error_type = SINTAXIS;	
+	extern yylineno;
+	char *yytext;
+	char *param_name = NULL;
+
 %}
 
 %union {
-        char *idval;
-        char *constval;
-        char *strval;
-        }
+   attributes attribute;
+}
 
 /* precedencia en orden en que aparecen tokens, de menor (arriba) a mayor (abajo) */
-%token	<idval> IDENTIFIER <constval> I_CONSTANT F_CONSTANT <strval> STRING_LITERAL FUNC_NAME SIZEOF
+%token	<attribute> IDENTIFIER I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
 %token	PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
 %token	AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
 %token	SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
@@ -33,51 +36,35 @@
 
 %token	TYPEDEF EXTERN STATIC AUTO REGISTER INLINE
 %token	CONST RESTRICT VOLATILE
-%token	BOOL CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE VOID
+%token	<attribute> BOOL CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE VOID
 %token	COMPLEX IMAGINARY 
 %token	STRUCT UNION ENUM ELLIPSIS
 
 %token	CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
-%token	ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
+%token	ALIGNAS ALIGNOF ATOMIC NORETURN THREAD_LOCAL
+
+%type <attribute> string constant primary_expression postfix_expression unary_expression
+%type <attribute> cast_expression multiplicative_expression additive_expression shift_expression relational_expression 
+%type <attribute> equality_expression and_expression exclusive_or_expression inclusive_or_expression logical_and_expression
+%type <attribute> logical_or_expression conditional_expression assignment_expression expression expression_statement
+%type <attribute> statement block_item initializer initializer_list init_declarator direct_declarator declarator 
+%type <attribute> init_declarator_list declaration external_declaration type_specifier specifier_qualifier_list type_name 
+%type <attribute> struct_or_union_specifier struct_or_union enum_specifier function_definition
 
 %start translation_unit     /* define el start symbol */
 
 %{
     /* typedef enum { LOCAL, GLOBAL } scope_type; */
     /* scope_type scope;                          */
-  	int global_type_specifier = INT;
-  	hash_table_type global_symbol_table, current_scope_symbol_table, functions_symbol_table;	
+  	int global_type_specifier = INTEGER;
+  	hash_table_type global_symbol_table, current_scope_symbol_table, functions_symbol_table;
+  	buffer parameter_list_buffer;
+  	entry_data last_inserted_function;
 %}
+
 %%
 
-primary_expression
-	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
-	                          if (yychar != '('){ /* not a function call */
-	                            check_var_declared($1);
-	                            PRINT("$");        
-	                          }
-	                          else /* function call */
-	                            check_function_declared($1);
-	                            
-	                          PRINT($1); free($1); 
-	                        }    
-	| constant              
-	| string
-	| '(' expression ')'
-	| generic_selection
-	;
-
-constant
-	: I_CONSTANT            { PRINT($1); free($1); }  /* includes character_constant */
-	| F_CONSTANT            { PRINT($1); free($1); }
-	| ENUMERATION_CONSTANT	/* after it has been defined as such */
-	;
-
-enumeration_constant		/* before it has been defined as such */
-	: IDENTIFIER
-	;
-	
 left_parenthesis
 	: '(' { PRINT("("); }
 	;
@@ -88,7 +75,7 @@ right_parenthesis
 	
 left_bracket
 	: '[' { PRINT("["); }
-	;
+	;	
 	
 right_bracket
 	: ']' { PRINT("]"); }
@@ -103,39 +90,57 @@ right_curly
 	;
 	
 assign_op
-    : '=' { PRINT("="); }
-    ;						
+    	: '=' { PRINT("="); }
+    	;
 
+primary_expression		
+	: IDENTIFIER            
+	  { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
+	    if (yychar != '('){ /* not a function call */
+		if (!check_var_declared($1.value)) YYERROR;
+		PRINT("$");        
+	    }
+	    else /* function call */
+		check_function_declared($1.value);
+	    $$.type = get_type($1.value); 
+            PRINT($1.value); free($1.value); 
+	  }    
+	| constant          				{ $$.type = $1.type; }	    
+	| string					{ $$.type = $1.type; }
+	| '(' expression ')'    			{ $$.type = $2.type; }
+	;
+
+constant 
+	: I_CONSTANT					{ PRINT($1.value); free($1.value); } /* includes character_constant */	
+							{ $$.type = INTEGER; }
+	| F_CONSTANT            			{ PRINT($1.value); free($1.value); }
+							{ $$.type = REAL; }
+	| ENUMERATION_CONSTANT				{ $$.type = VACIO; }
+	;
+
+enumeration_constant		/* before it has been defined as such */
+	: IDENTIFIER
+	;
+	
 string
-	: STRING_LITERAL        { PRINT($1); free($1); }
-	| FUNC_NAME
-	;
-
-generic_selection
-	: GENERIC '(' assignment_expression ',' generic_assoc_list ')'
-	;
-
-generic_assoc_list
-	: generic_association
-	| generic_assoc_list ',' generic_association
-	;
-
-generic_association
-	: type_name ':' assignment_expression
-	| DEFAULT ':' assignment_expression
+	: STRING_LITERAL        			{ PRINT($1.value); free($1.value); } 
+							{ $$.type = CHARACTER; }
 	;
 
 postfix_expression
-	: primary_expression
-	| postfix_expression '[' { PRINT("["); } expression ']' { PRINT("]"); }
-	| postfix_expression '(' { PRINT("("); } ')' { PRINT(")"); }
+	: primary_expression				{ $$.type = $1.type; }
+	| postfix_expression '[' { PRINT("["); } expression ']' { PRINT("]"); } 
+	  {	if ($4.type==INTEGER) 
+			$$.type=$1.type;
+	   	 else 
+			$$.type=ERROR_TIPO; 
+	  }
+	| postfix_expression '(' { PRINT("("); } ')' { PRINT(")"); } 				
 	| postfix_expression '(' { PRINT("("); } argument_expression_list ')' { PRINT(")"); }
 	| postfix_expression '.' IDENTIFIER
 	| postfix_expression PTR_OP IDENTIFIER
 	| postfix_expression INC_OP { PRINT("++"); }
 	| postfix_expression DEC_OP { PRINT("--"); }
-	| '(' type_name ')' '{' initializer_list '}'
-	| '(' type_name ')' '{' initializer_list ',' '}'
 	;
 
 argument_expression_list
@@ -144,13 +149,12 @@ argument_expression_list
 	;
 
 unary_expression
-	: postfix_expression
-	| INC_OP { PRINT("++"); } unary_expression
-	| DEC_OP { PRINT("--"); } unary_expression
-	| unary_operator cast_expression
+	: postfix_expression 				{ $$.type = $1.type; }
+	| INC_OP { PRINT("++"); } unary_expression	{ $$.type = $3.type; }
+	| DEC_OP { PRINT("--"); } unary_expression	{ $$.type = $3.type; }
+	| unary_operator cast_expression		{ $$.type = $2.type; }
 	| SIZEOF unary_expression
-	| SIZEOF '(' type_name ')'
-	| ALIGNOF '(' type_name ')'
+	| SIZEOF '(' type_name ')'	
 	;
 
 unary_operator
@@ -162,32 +166,57 @@ unary_operator
 	| '!' { PRINT("!"); }
 	;
 
-cast_expression
-	: unary_expression
-	| '(' type_name ')' cast_expression
+cast_expression 
+	: unary_expression 				{ $$.type = $1.type; }
+	| '(' type_name ')' cast_expression		{ $$.type = $2.type; }
 	;
 
 multiplicative_expression
-	: cast_expression
-	| multiplicative_expression '*' { PRINT("*"); } cast_expression
+	: cast_expression 				{ $$.type = $1.type; }
+	| multiplicative_expression '*' { PRINT("*"); } cast_expression 
+	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
+		$$.type = $1.type;
+	    else $$.type = 
+		ERROR_TIPO; 
+	   }
 	| multiplicative_expression '/' { PRINT("/"); } cast_expression
+	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
+		$$.type = $1.type;
+	    else 
+		$$.type = ERROR_TIPO; 
+	  }
 	| multiplicative_expression '%' { PRINT("%"); } cast_expression
+	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
+		$$.type = $1.type;
+	    else 
+		$$.type = ERROR_TIPO; 
+	  }
 	;
 
 additive_expression
-	: multiplicative_expression
+	: multiplicative_expression 			{ $$.type = $1.type; }
 	| additive_expression '+' { PRINT("+"); } multiplicative_expression
+	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
+		$$.type = $1.type;
+	    else 
+		$$.type = ERROR_TIPO; 
+	  }
 	| additive_expression '-' { PRINT("-"); } multiplicative_expression
+	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
+		$$.type = $1.type;
+	    else 
+		$$.type = ERROR_TIPO; 
+	  }
 	;
 
 shift_expression
-	: additive_expression
+	: additive_expression 				{ $$.type = $1.type; }
 	| shift_expression LEFT_OP { PRINT("<<"); } additive_expression
 	| shift_expression RIGHT_OP { PRINT(">>"); } additive_expression
 	;
 
 relational_expression
-	: shift_expression
+	: shift_expression 				{ $$.type = $1.type; }
 	| relational_expression '<' { PRINT("<"); } shift_expression
 	| relational_expression '>' { PRINT(">"); } shift_expression
 	| relational_expression LE_OP { PRINT("<="); } shift_expression
@@ -195,44 +224,49 @@ relational_expression
 	;
 
 equality_expression
-	: relational_expression
+	: relational_expression 			{ $$.type = $1.type; }
 	| equality_expression EQ_OP { PRINT("=="); } relational_expression
 	| equality_expression NE_OP { PRINT("!="); } relational_expression
 	;
 
 and_expression
-	: equality_expression
+	: equality_expression 				{ $$.type = $1.type; }
 	| and_expression '&' { PRINT("&"); } equality_expression
 	;
 
 exclusive_or_expression
-	: and_expression
+	: and_expression 				{ $$.type = $1.type; }
 	| exclusive_or_expression '^' { PRINT("^"); } and_expression
 	;
 
 inclusive_or_expression
-	: exclusive_or_expression
+	: exclusive_or_expression 			{ $$.type = $1.type; }
 	| inclusive_or_expression '|' { PRINT("|"); } exclusive_or_expression
 	;
 
 logical_and_expression
-	: inclusive_or_expression
+	: inclusive_or_expression 			{ $$.type = $1.type; }
 	| logical_and_expression AND_OP { PRINT("&&"); } inclusive_or_expression
 	;
 
 logical_or_expression
-	: logical_and_expression
+	: logical_and_expression 			{ $$.type = $1.type; }
 	| logical_or_expression OR_OP { PRINT("||"); } logical_and_expression
 	;
 
 conditional_expression
-	: logical_or_expression
+	: logical_or_expression 			{ $$.type = $1.type; }
 	| logical_or_expression '?' { PRINT("?"); } expression ':' { PRINT(":"); } conditional_expression
 	;
 
 assignment_expression
-	: conditional_expression
-	| unary_expression assignment_operator assignment_expression
+	: conditional_expression 			{ $$.type = $1.type; }
+	| unary_expression assignment_operator assignment_expression 
+	 { if ($1.type == $3.type) 
+		$$.type = VACIO;
+	   else 
+		$$.type = ERROR_TIPO; 
+	 }
 	;
 
 assignment_operator
@@ -250,8 +284,12 @@ assignment_operator
 	;
 
 expression
-	: assignment_expression
-	| expression ',' { PRINT(","); } assignment_expression
+	: assignment_expression 			{ $$.type = $1.type; }
+	| expression ',' { PRINT(","); } assignment_expression 
+	  { if ($1.type != ERROR_TIPO && $4.type != ERROR_TIPO ) 
+		$$.type = VACIO;
+	    else $$.type = ERROR_TIPO; 
+	  }
 	;
 
 constant_expression
@@ -260,8 +298,7 @@ constant_expression
 
 declaration
 	: declaration_specifiers ';' { PRINT(";"); }
-	| declaration_specifiers init_declarator_list ';' { PRINT(";"); }
-	| static_assert_declaration
+	| declaration_specifiers init_declarator_list ';' { PRINT(";"); } { $$.type = $2.type; }
 	;
 
 declaration_specifiers
@@ -273,17 +310,25 @@ declaration_specifiers
 	| type_qualifier
 	| function_specifier declaration_specifiers
 	| function_specifier
-	| alignment_specifier declaration_specifiers
-	| alignment_specifier
 	;
 
 init_declarator_list
-	: init_declarator
-	| init_declarator_list ',' { PRINT(";"); } init_declarator
+	: init_declarator 				{ $$.type = $1.type; }
+	| init_declarator_list ',' { PRINT(";"); } init_declarator 	
+	  { if ($1.type != ERROR_TIPO && $4.type != ERROR_TIPO ) 
+		$$.type = VACIO;
+	    else 
+		$$.type = ERROR_TIPO; 
+	  }
 	;
 
 init_declarator
-	: declarator assign_op initializer
+	: declarator assign_op initializer  
+	  { if ($1.type == $3.type) 
+		$$.type = VACIO;
+	    else 
+		$$.type = ERROR_TIPO; 
+	  }
 	| declarator
 	;
 
@@ -297,22 +342,17 @@ storage_class_specifier
 	;
 
 type_specifier
-	: VOID          { global_type_specifier = VOID; }
-	| CHAR          { global_type_specifier = CHAR; }
-	| SHORT         { global_type_specifier = SHORT; }
-	| INT           { global_type_specifier = INT; }
-	| LONG          { global_type_specifier = LONG; }
-	| FLOAT         { global_type_specifier = FLOAT; }
-	| DOUBLE        { global_type_specifier = DOUBLE; }
+	: VOID		{ global_type_specifier = VOID; }		{ $$.type = VOID; }
+	| CHAR          { global_type_specifier = CHARACTER; }		{ $$.type = CHARACTER; }
+	| SHORT         { global_type_specifier = INTEGER; }		{ $$.type = INTEGER; }
+	| INT           { global_type_specifier = INTEGER; }		{ $$.type = INTEGER; }
+	| LONG          { global_type_specifier = INTEGER; }		{ $$.type = INTEGER; }
+	| FLOAT         { global_type_specifier = REAL; }		{ $$.type = REAL; }
+	| DOUBLE        { global_type_specifier = REAL; }		{ $$.type = REAL; }
 	| SIGNED
 	| UNSIGNED
-	| BOOL
-	| COMPLEX
-	| IMAGINARY	  	/* non-mandated extension */
-	| atomic_type_specifier
 	| struct_or_union_specifier
 	| enum_specifier
-	| TYPEDEF_NAME		/* after it has been defined as such */
 	;
 
 struct_or_union_specifier
@@ -322,8 +362,8 @@ struct_or_union_specifier
 	;
 
 struct_or_union
-	: STRUCT
-	| UNION
+	: STRUCT							{ $$.type = VACIO; }
+	| UNION								{ $$.type = VACIO; }
 	;
 
 struct_declaration_list
@@ -334,14 +374,18 @@ struct_declaration_list
 struct_declaration
 	: specifier_qualifier_list ';'	/* for anonymous struct/union */
 	| specifier_qualifier_list struct_declarator_list ';'
-	| static_assert_declaration
 	;
 
 specifier_qualifier_list
-	: type_specifier specifier_qualifier_list
-	| type_specifier
-	| type_qualifier specifier_qualifier_list
-	| type_qualifier
+	: type_specifier specifier_qualifier_list		
+	  { if ($1.type==$2.type ) 
+		$$.type = $1.type;
+	    else 
+		$$.type = ERROR_TIPO; 
+	  }
+	| type_specifier				{ $$.type = $1.type; }
+	| type_qualifier specifier_qualifier_list	{ $$.type = VACIO; }
+	| type_qualifier				{ $$.type = VACIO; }
 	;
 
 struct_declarator_list
@@ -356,11 +400,11 @@ struct_declarator
 	;
 
 enum_specifier
-	: ENUM '{' enumerator_list '}'
-	| ENUM '{' enumerator_list ',' '}'
-	| ENUM IDENTIFIER '{' enumerator_list '}'
-	| ENUM IDENTIFIER '{' enumerator_list ',' '}'
-	| ENUM IDENTIFIER
+	: ENUM '{' enumerator_list '}'			{ $$.type = VACIO; }
+	| ENUM '{' enumerator_list ',' '}'		{ $$.type = VACIO; }
+	| ENUM IDENTIFIER '{' enumerator_list '}'	{ $$.type = VACIO; }
+	| ENUM IDENTIFIER '{' enumerator_list ',' '}'	{ $$.type = VACIO; }
+	| ENUM IDENTIFIER				{ $$.type = VACIO; }
 	;
 
 enumerator_list
@@ -373,15 +417,10 @@ enumerator	/* identifiers must be flagged as ENUMERATION_CONSTANT */
 	| enumeration_constant
 	;
 
-atomic_type_specifier
-	: ATOMIC '(' type_name ')'
-	;
-
 type_qualifier
 	: CONST
 	| RESTRICT
 	| VOLATILE
-	| ATOMIC
 	;
 
 function_specifier
@@ -389,45 +428,37 @@ function_specifier
 	| NORETURN
 	;
 
-alignment_specifier
-	: ALIGNAS '(' type_name ')'
-	| ALIGNAS '(' constant_expression ')'
-	;
-
 declarator
-	: pointer direct_declarator
-	| direct_declarator
+	: pointer direct_declarator 			{ $$.type = $2.type; }
+	| direct_declarator 				{ $$.type = $1.type; }
 	;
 
 direct_declarator
 	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
 	                          if (yychar == '('){
-	                            check_function_redefinition($1);	                            
+	                            check_function_redefinition($1.value);	                            
 	                            PRINT("function "); /* function */
-	                            table_insert($1, global_type_specifier, functions_symbol_table);
+	                            last_inserted_function = table_insert($1.value, global_type_specifier, functions_symbol_table);
 	                            begin_local_scope();
 	                          }
 	                          else {
-	                            check_var_redefinition($1);
+	                            check_var_redefinition($1.value);
 	                            PRINT("$");                       /* var */
-	                            table_insert($1, global_type_specifier, current_scope_symbol_table);
+	                            table_insert($1.value, global_type_specifier, current_scope_symbol_table);
 	                          }
-	                          printf("ID: %s, TYPE: %d\n", $1, global_type_specifier);                          
-	                          PRINT($1); free($1); 
+	                          //printf("ID: %s, TYPE: %d\n", $1.value, global_type_specifier);
+				  $$.type = get_type($1.value);                         
+	                          PRINT($1.value); free($1.value); 
 	                        }
-	| '(' declarator ')'
 	| direct_declarator '[' ']'
-	| direct_declarator '[' '*' ']'
-	| direct_declarator '[' STATIC type_qualifier_list assignment_expression ']'
-	| direct_declarator '[' STATIC assignment_expression ']'
-	| direct_declarator '[' type_qualifier_list '*' ']'
-	| direct_declarator '[' type_qualifier_list STATIC assignment_expression ']'
-	| direct_declarator '[' type_qualifier_list assignment_expression ']'
-	| direct_declarator '[' type_qualifier_list ']'
 	| direct_declarator '[' { print_enabled = FALSE; } assignment_expression ']' { print_enabled = TRUE; }
-	| direct_declarator '(' { PRINT("("); } parameter_type_list ')' { PRINT(")"); }
-	| direct_declarator '(' ')' { PRINT("()"); }
-	| direct_declarator '(' identifier_list ')'
+	| direct_declarator '(' 
+	    { PRINT("("); 
+	      parameter_list_buffer = init_buffer(); } 
+	  parameter_list ')'                   
+	    { PRINT(")"); 
+	    last_inserted_function.input_type = parameter_list_buffer.data; }
+	| direct_declarator '(' ')' { PRINT("()"); }  
 	;
 
 pointer
@@ -442,105 +473,48 @@ type_qualifier_list
 	| type_qualifier_list type_qualifier
 	;
 
-
-parameter_type_list
-	: parameter_list ',' { PRINT(","); } ELLIPSIS
-	| parameter_list
-	;
-
 parameter_list
 	: parameter_declaration
 	| parameter_list ',' { PRINT(","); } parameter_declaration
 	;
 
 parameter_declaration
-	: declaration_specifiers declarator
-	| declaration_specifiers abstract_declarator
-	| declaration_specifiers
-	;
-
-identifier_list
-	: IDENTIFIER
-	| identifier_list ',' IDENTIFIER
+	: declaration_specifiers declarator     { buffer_add(&parameter_list_buffer, global_type_specifier); }
+	| declaration_specifiers                { buffer_add(&parameter_list_buffer, global_type_specifier); }
 	;
 
 type_name
-	: specifier_qualifier_list abstract_declarator
-	| specifier_qualifier_list
-	;
-
-abstract_declarator
-	: pointer direct_abstract_declarator
-	| pointer
-	| direct_abstract_declarator
-	;
-
-direct_abstract_declarator
-	: '(' abstract_declarator ')'
-	| '[' ']'
-	| '[' '*' ']'
-	| '[' STATIC type_qualifier_list assignment_expression ']'
-	| '[' STATIC assignment_expression ']'
-	| '[' type_qualifier_list STATIC assignment_expression ']'
-	| '[' type_qualifier_list assignment_expression ']'
-	| '[' type_qualifier_list ']'
-	| '[' assignment_expression ']'
-	| direct_abstract_declarator '[' ']'
-	| direct_abstract_declarator '[' '*' ']'
-	| direct_abstract_declarator '[' STATIC type_qualifier_list assignment_expression ']'
-	| direct_abstract_declarator '[' STATIC assignment_expression ']'
-	| direct_abstract_declarator '[' type_qualifier_list assignment_expression ']'
-	| direct_abstract_declarator '[' type_qualifier_list STATIC assignment_expression ']'
-	| direct_abstract_declarator '[' type_qualifier_list ']'
-	| direct_abstract_declarator '[' assignment_expression ']'
-	| '(' ')'
-	| '(' parameter_type_list ')'
-	| direct_abstract_declarator '(' ')'
-	| direct_abstract_declarator '(' parameter_type_list ')'
+	: specifier_qualifier_list			{ $$.type = $1.type; }
 	;
 
 initializer
-	: '{' { PRINT("array("); } initializer_list maybe_comma '}' { PRINT(")"); }
-	| assignment_expression
+	: '{' { PRINT("array("); } initializer_list maybe_comma '}' { PRINT(")"); } 
+							{ $$.type = $3.type; } 
+	| assignment_expression 			{ $$.type = $1.type; }
 	;
 	
 maybe_comma
-    : /* empty */
-    | ',' { PRINT(","); }
-    ;
+    	: /* empty */
+    	| ',' { PRINT(","); }
+    	;
 
 initializer_list
-	: designation initializer
-	| initializer
-	| initializer_list ',' designation initializer
-	| initializer_list ',' { PRINT(","); } initializer
-	;
-
-designation
-	: designator_list '='
-	;
-
-designator_list
-	: designator
-	| designator_list designator
-	;
-
-designator
-	: '[' constant_expression ']'
-	| '.' IDENTIFIER
-	;
-
-static_assert_declaration
-	: STATIC_ASSERT '(' constant_expression ',' STRING_LITERAL ')' ';'
+	: initializer 					{ $$.type = $1.type; }
+	| initializer_list ',' { PRINT(","); } initializer 
+	  { if ($1.type==$4.type) 
+		$$.type=$1.type; 
+	    else 
+		$$.type=ERROR_TIPO; 
+	  }
 	;
 
 statement
-	: labeled_statement
-	| compound_statement
-	| expression_statement
-	| selection_statement
-	| iteration_statement
-	| jump_statement
+	: labeled_statement				{ $$.type = VACIO; }
+	| compound_statement				{ $$.type = VACIO; }
+	| expression_statement 				{ $$.type = $1.type; } 
+	| selection_statement   			{ $$.type = VACIO; }
+	| iteration_statement   			{ $$.type = VACIO; }
+	| jump_statement				{ $$.type = VACIO; }
 	;
 
 labeled_statement
@@ -551,28 +525,40 @@ labeled_statement
 
 compound_statement
 	: left_curly right_curly
-	| left_curly  block_item_list right_curly
+	| left_curly  block_item_list right_curly 
 	;
 
 block_item_list
-	: block_item
+	: block_item 
 	| block_item_list block_item
 	| error block_item {yyerrok;}	
 	;
 
 block_item
-	: declaration
-	| statement
+	: declaration 					
+	  { $$.type = $1.type;
+	    if ($$.type==ERROR_TIPO){ 
+		error_type = TIPO;
+		yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 	  	
+	    }
+	  }
+	| statement 					
+	  { $$.type = $1.type; 
+	    if ($$.type==ERROR_TIPO){ 
+		error_type = TIPO;		
+		yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 
+	    }
+	  }
 	;
 
 expression_statement
 	: ';' { PRINT(";"); } 
-	| expression ';' { PRINT(";"); }
+	| expression ';' { PRINT(";"); } 		{ $$.type = $1.type; } 
 	;
 	
 if
-    : IF { PRINT("if"); }
-    ;	
+	: IF { PRINT("if"); }
+    	;	
 
 selection_statement
 	: if left_parenthesis expression right_parenthesis statement ELSE { PRINT("else"); } statement
@@ -580,13 +566,18 @@ selection_statement
 	| SWITCH { PRINT("switch"); } left_parenthesis expression right_parenthesis statement
 	;
 
+for
+	: FOR { PRINT("for"); }
+	;
+	
 iteration_statement
-	: WHILE { PRINT("while"); } left_parenthesis expression right_parenthesis statement 
-	| DO statement WHILE '(' expression ')' ';'
-	| FOR '(' expression_statement expression_statement ')' statement
-	| FOR '(' expression_statement expression_statement expression ')' statement
-	| FOR '(' declaration expression_statement ')' statement
-	| FOR '(' declaration expression_statement expression ')' statement
+	: WHILE { PRINT("while"); } left_parenthesis expression right_parenthesis  
+	| DO { PRINT("do"); } statement WHILE { PRINT("while"); } left_parenthesis expression right_parenthesis 
+	  ';' { PRINT(";"); }
+	| for left_parenthesis expression_statement expression_statement right_parenthesis statement
+	| for left_parenthesis expression_statement expression_statement expression right_parenthesis statement
+	| for left_parenthesis declaration expression_statement right_parenthesis statement
+	| for left_parenthesis declaration expression_statement expression right_parenthesis statement
 	;
 
 jump_statement
@@ -598,23 +589,24 @@ jump_statement
 	;
 
 translation_unit
-	: external_declaration
+	: external_declaration 
 	| translation_unit external_declaration
 	| error external_declaration { yyerrok; }	
 	;
 
 external_declaration
 	: function_definition
-	| declaration
+	| declaration 
+	  { $$.type = $1.type; 
+	    if ($$.type==ERROR_TIPO){ 
+		error_type = TIPO;		
+		yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 
+	    }
+	  }
 	;
 
 function_definition
-	: declaration_specifiers declarator declaration_list compound_statement { end_local_scope(); }
-	| declaration_specifiers declarator compound_statement                  { end_local_scope(); }
-
-declaration_list
-	: declaration
-	| declaration_list declaration
+	: declaration_specifiers declarator compound_statement                  { end_local_scope(); } 
 	;
 
 %%
@@ -631,22 +623,45 @@ void end_local_scope(){
 }
 
 void check_function_redefinition(char *name){
-    if (lookup_string(name, functions_symbol_table)) yyerror("Error: Intento de redefinir función: NAME");
+    if (lookup_string(name, functions_symbol_table)) {
+	param_name = name;
+	error_type = AMBITO;
+	yyerror("intento de redefinir función");
+    }
 }
 
 void check_var_redefinition(char *name){
-    if (lookup_string(name, current_scope_symbol_table)) yyerror("ATENCION          Error: Intento de redefinir variable: NAME");
+    if (lookup_string(name, current_scope_symbol_table)) {
+	param_name = name;
+	error_type = AMBITO;
+ 	yyerror("intento de redefinir variable");
+    }
 }
 
 void check_function_declared(char *name){
     if (!lookup_string(name, functions_symbol_table)) 
-        fprintf(stderr, "Warning: Declaración implícita de la función '%s'\n", name);
+        fprintf(stderr, "Cerca de la línea %d: warning: declaración implícita de la función '%s'\n", yylineno, name);
 }
 
-void check_var_declared(char *name){
-    if ( (!lookup_string(name, current_scope_symbol_table) && current_scope_symbol_table == global_symbol_table)
-     ||   !lookup_string(name, global_symbol_table) )
-	    yyerror ("Variable no declarada: NAME");
+int check_var_declared(char *name){
+    if ( (!lookup_string(name, current_scope_symbol_table) && current_scope_symbol_table != global_symbol_table)
+     &&   !lookup_string(name, global_symbol_table) ) {
+	param_name = name;
+	error_type = AMBITO;
+	yyerror ("variable no declarada");
+	return 0;
+    }
+    return 1; 	
+}
+
+int get_type(char *name){
+    list_pointer type;
+    if ( (type = lookup_string(name, current_scope_symbol_table)) && current_scope_symbol_table != global_symbol_table)
+     	return type->entry.type;
+    else if ( (type = lookup_string(name, global_symbol_table)) )
+	return type->entry.type;
+    else 
+	return ERROR_TIPO; 	
 }
 
 int main(){
@@ -657,30 +672,39 @@ int main(){
     
     global_symbol_table = create_table(); /* crear symbol table para variables con global scope */
     current_scope_symbol_table = global_symbol_table; /* current scope = GLOBAL */
-    functions_symbol_table = create_table(); /* crear symbol table para funciones */  
-    
+    functions_symbol_table = create_table(); /* crear symbol table para funciones */     
+
     yyparse();
     
     fputs ("\n\n?>", pFile);
     fclose (pFile);
     
-    if (errores > 0){
+    if (errors > 0){
 	    if( remove( FILENAME ) != 0 )
 		  	perror( "Error al intentar eliminar el archivo" );
   		else
-  		    printf("%d errores detectados\n", errores);
+  		    printf("%d errores detectados\n", errors);
             puts( "No se generará traducción. Archivo eliminado exitosamente" );		
 	}
 	
 	free_table(global_symbol_table); /* liberar memoria */
 	free_table(functions_symbol_table); /* liberar memoria */
-    
     return 0;
 }
 
 void yyerror (const char *message) {
-
-    extern yylineno;   
-    fprintf(stderr, "Near line %d: %s at '%s'\n", yylineno, message, yytext);
-    errores++;  
+	switch (error_type){
+		case AMBITO:
+			fprintf(stderr, "Línea %d: error: %s '%s'\n", yylineno, message, param_name);
+			break;
+		case TIPO:
+			fprintf(stderr, "Línea %d: error: %s\n", yylineno, message);
+			break;
+		default:
+			fprintf(stderr, "Cerca de la línea %d: error: %s cerca de '%s'\n", yylineno, message, yytext);
+			break;	
+	}
+	error_type = SINTAXIS;       	
+	errors++;  
 }
+
