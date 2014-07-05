@@ -3,9 +3,17 @@
 	#include "c-grammar.h"
 	#include "symbol_table.h"
 	
+	void yyerror (const char *);
+	char *yytext;
+	
 	void begin_local_scope();
 	void end_local_scope();
+	void check_function_redefinition(char *name);
+	void check_function_declared(char *name);
+	void check_var_declared(char *name);
+	void check_var_redefinition(char *name);
   	
+    int print_enabled = TRUE;
   	short int errores = 0;		
 %}
 
@@ -18,9 +26,9 @@
 /* precedencia en orden en que aparecen tokens, de menor (arriba) a mayor (abajo) */
 %token	<idval> IDENTIFIER <constval> I_CONSTANT F_CONSTANT <strval> STRING_LITERAL FUNC_NAME SIZEOF
 %token	PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
-%token	<id> AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
-%token	<id> SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
-%token	<id> XOR_ASSIGN OR_ASSIGN
+%token	AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
+%token	SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
+%token	XOR_ASSIGN OR_ASSIGN
 %token	TYPEDEF_NAME ENUMERATION_CONSTANT
 
 %token	TYPEDEF EXTERN STATIC AUTO REGISTER INLINE
@@ -39,21 +47,21 @@
     /* typedef enum { LOCAL, GLOBAL } scope_type; */
     /* scope_type scope;                          */
   	int global_type_specifier = INT;
-  	hash_table_type global_symbol_table, current_scope_symbol_table;	
+  	hash_table_type global_symbol_table, current_scope_symbol_table, functions_symbol_table;	
 %}
 %%
 
 primary_expression
 	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
 	                          if (yychar != '('){ /* not a function call */
-	                            if (!lookup_string($1, current_scope_symbol_table) && !lookup_string($1, global_symbol_table)){
-	                                yyerror ("Variable no declarada: "); fputs($1, stderr);}
-	                            else PRINT("$");        
+	                            check_var_declared($1);
+	                            PRINT("$");        
 	                          }
-	                          else if (!lookup_string($1, global_symbol_table)){ /* function call */
-	                            fprintf(stderr, "Warning: Declaración implícita de la función %s\n", $1);
-	                          }
-	                          PRINT($1); free($1); }    
+	                          else /* function call */
+	                            check_function_declared($1);
+	                            
+	                          PRINT($1); free($1); 
+	                        }    
 	| constant              
 	| string
 	| '(' expression ')'
@@ -119,7 +127,7 @@ generic_association
 
 postfix_expression
 	: primary_expression
-	| postfix_expression '[' expression ']'
+	| postfix_expression '[' { PRINT("["); } expression ']' { PRINT("]"); }
 	| postfix_expression '(' { PRINT("("); } ')' { PRINT(")"); }
 	| postfix_expression '(' { PRINT("("); } argument_expression_list ')' { PRINT(")"); }
 	| postfix_expression '.' IDENTIFIER
@@ -394,11 +402,13 @@ declarator
 direct_declarator
 	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
 	                          if (yychar == '('){
+	                            check_function_redefinition($1);	                            
 	                            PRINT("function "); /* function */
-	                            table_insert($1, global_type_specifier, global_symbol_table);
+	                            table_insert($1, global_type_specifier, functions_symbol_table);
 	                            begin_local_scope();
 	                          }
 	                          else {
+	                            check_var_redefinition($1);
 	                            PRINT("$");                       /* var */
 	                            table_insert($1, global_type_specifier, current_scope_symbol_table);
 	                          }
@@ -414,7 +424,7 @@ direct_declarator
 	| direct_declarator '[' type_qualifier_list STATIC assignment_expression ']'
 	| direct_declarator '[' type_qualifier_list assignment_expression ']'
 	| direct_declarator '[' type_qualifier_list ']'
-	| direct_declarator '[' assignment_expression ']'
+	| direct_declarator '[' { print_enabled = FALSE; } assignment_expression ']' { print_enabled = TRUE; }
 	| direct_declarator '(' { PRINT("("); } parameter_type_list ')' { PRINT(")"); }
 	| direct_declarator '(' ')' { PRINT("()"); }
 	| direct_declarator '(' identifier_list ')'
@@ -490,16 +500,20 @@ direct_abstract_declarator
 	;
 
 initializer
-	: '{' initializer_list '}'
-	| '{' initializer_list ',' '}'
+	: '{' { PRINT("array("); } initializer_list maybe_comma '}' { PRINT(")"); }
 	| assignment_expression
 	;
+	
+maybe_comma
+    : /* empty */
+    | ',' { PRINT(","); }
+    ;
 
 initializer_list
 	: designation initializer
 	| initializer
 	| initializer_list ',' designation initializer
-	| initializer_list ',' initializer
+	| initializer_list ',' { PRINT(","); } initializer
 	;
 
 designation
@@ -543,6 +557,7 @@ compound_statement
 block_item_list
 	: block_item
 	| block_item_list block_item
+	| error block_item {yyerrok;}	
 	;
 
 block_item
@@ -585,6 +600,7 @@ jump_statement
 translation_unit
 	: external_declaration
 	| translation_unit external_declaration
+	| error external_declaration { yyerrok; }	
 	;
 
 external_declaration
@@ -614,14 +630,34 @@ void end_local_scope(){
     current_scope_symbol_table = global_symbol_table; /* current scope = GLOBAL */     
 }
 
+void check_function_redefinition(char *name){
+    if (lookup_string(name, functions_symbol_table)) yyerror("Error: Intento de redefinir función: NAME");
+}
+
+void check_var_redefinition(char *name){
+    if (lookup_string(name, current_scope_symbol_table)) yyerror("Error: Intento de redefinir variable: NAME");
+}
+
+void check_function_declared(char *name){
+    if (!lookup_string(name, functions_symbol_table)) 
+        fprintf(stderr, "Warning: Declaración implícita de la función '%s'\n", name);
+}
+
+void check_var_declared(char *name){
+    if ( (!lookup_string(name, current_scope_symbol_table) && current_scope_symbol_table == global_symbol_table)
+     ||   !lookup_string(name, global_symbol_table) )
+	    yyerror ("Variable no declarada: NAME");
+}
+
 int main(){
     
     pFile = fopen (FILENAME , "w");
     if (pFile == NULL) perror ("Error al abrir el archivo");
     fputs ("<?php\n\n", pFile);
     
-    global_symbol_table = create_table(); /* crear symbol table para global scope */
-    current_scope_symbol_table = global_symbol_table; /* current scope = GLOBAL */  
+    global_symbol_table = create_table(); /* crear symbol table para variables con global scope */
+    current_scope_symbol_table = global_symbol_table; /* current scope = GLOBAL */
+    functions_symbol_table = create_table(); /* crear symbol table para funciones */  
     
     yyparse();
     
@@ -637,13 +673,14 @@ int main(){
 	}
 	
 	free_table(global_symbol_table); /* liberar memoria */
+	free_table(functions_symbol_table); /* liberar memoria */
     
     return 0;
 }
 
-int yyerror (char const *message) {
-  fputs(message, stderr);
-  fputc('\n', stderr);
-  errores++;
-  return 0;
+void yyerror (const char *message) {
+
+    extern yylineno;   
+    fprintf(stderr, "Near line %d: %s at '%s'\n", yylineno, message, yytext);
+    errores++;  
 }

@@ -1,3 +1,4 @@
+%option yylineno
 %e  1019
 %p  2807
 %n  371

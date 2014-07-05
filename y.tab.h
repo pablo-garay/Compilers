@@ -195,7 +195,7 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 12 "c-grammar.y"
+#line 20 "c-grammar.y"
 
         char *idval;
         char *constval;

@@ -110,7 +110,7 @@ void table_insert(char *name, const int type, list_pointer ht[]){
 	int hash_value = hash(name);
 	list_pointer ptr, trail = NULL, lead = ht[hash_value];
 
-	if (lookup_string(name, ht)) return; /* si ya existe entry, retornar */
+	// if (lookup_string(name, ht)) return; /* si ya existe entry, retornar */
 
 
 

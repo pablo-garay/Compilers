@@ -2,7 +2,9 @@
 
 $hola = array(array());
 
-echo "imprimiendo";
-print_r($hola);
+$v[1][2][3][4] = 1;
+
+echo "imprimiendo\n";
+print_r($v);
 
 ?>

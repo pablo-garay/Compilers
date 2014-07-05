@@ -39,7 +39,16 @@ ID: p, TYPE: 299
 [2]
 [3]
 [4]
-[5]->main->n
+[5]->vector->n
+[6]
+
+ID: vector, TYPE: 299
+[0]
+[1]
+[2]
+[3]
+[4]
+[5]->main
 [6]
 
 ID: main, TYPE: 299
@@ -79,24 +88,95 @@ ID: result, TYPE: 299
 [6]->a
 
 ID: letter, TYPE: 297
+[0]->b
+[1]
+[2]
+[3]
+[4]->letter
+[5]->result
+[6]->a->a
+
 ID: a, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]
+[4]->letter
+[5]->result
+[6]->a->a->a
+
 ID: a, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]->vec
+[4]->letter
+[5]->result
+[6]->a->a->a
+
+ID: vec, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]->vect->vec
+[4]->letter
+[5]->result
+[6]->a->a->a
+
+ID: vect, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]->vect->vec
+[4]->letter->letter
+[5]->result
+[6]->a->a->a
+
 ID: letter, TYPE: 297
-[0]->p->global1
-[1]->global2
+[0]
+[1]
+[2]
+[3]
+[4]
+[5]->main->main
+[6]
+
+ID: main, TYPE: 299
+[0]
+[1]
+[2]
+[3]
+[4]
+[5]
+[6]->a
+
+ID: a, TYPE: 299
+[0]->b
+[1]
+[2]
+[3]
+[4]
+[5]
+[6]->a
+
+ID: b, TYPE: 299
+[0]
+[1]
 [2]
 [3]
 [4]->f
-[5]->main->n
+[5]->main->main
 [6]
 
 ID: f, TYPE: 299
-[0]->p->global1
-[1]->global2
+[0]
+[1]
 [2]
 [3]
 [4]->f
-[5]->g->main->n
+[5]->g->main->main
 [6]
 
 ID: g, TYPE: 299
+13 errores detectados
+No se generará traducción. Archivo eliminado exitosamente
