@@ -3,22 +3,28 @@
 	#include "c-grammar.h"
 	#include "symbol_table.h"
 	#include "int_buffer.h"
+	
+	#define NEXT_TOKEN (yychar == YYEMPTY) ? yychar = YYLEX : yychar
 
 	void yyerror (const char *);	
 	void begin_local_scope();
 	void end_local_scope();
 	void check_function_redefinition(char *name);
 	void check_function_declared(char *name);
-	int check_var_declared(char *name);
+	void check_var_declared(char *name);
 	void check_var_redefinition(char *name);
-	int get_type(char *name);
+	int get_var_type(char *name);
+	int get_function_type(char *name);
+	int type_check(int type1, int type2, int operation);
+	void function_type_check(char *function_name, int *function_actual_params);
+	int *get_function_formal_params(char *name);
   	
     int print_enabled = TRUE;
   	short int errors = 0;	
 	short int error_type = SINTAXIS;	
 	extern yylineno;
 	char *yytext;
-	char *param_name = NULL;
+	char *error_string = NULL; int error_param;
 
 %}
 
@@ -44,7 +50,7 @@
 
 %token	ALIGNAS ALIGNOF ATOMIC NORETURN THREAD_LOCAL
 
-%type <attribute> string constant primary_expression postfix_expression unary_expression
+%type <attribute> string constant primary_expression postfix_expression unary_expression argument_expression_list
 %type <attribute> cast_expression multiplicative_expression additive_expression shift_expression relational_expression 
 %type <attribute> equality_expression and_expression exclusive_or_expression inclusive_or_expression logical_and_expression
 %type <attribute> logical_or_expression conditional_expression assignment_expression expression expression_statement
@@ -59,8 +65,7 @@
     /* scope_type scope;                          */
   	int global_type_specifier = INTEGER;
   	hash_table_type global_symbol_table, current_scope_symbol_table, functions_symbol_table;
-  	buffer parameter_list_buffer;
-  	entry_data last_inserted_function;
+  	entry_data last_inserted_function;  	
 %}
 
 %%
@@ -71,14 +76,6 @@ left_parenthesis
 	
 right_parenthesis
 	: ')' { PRINT(")"); }
-	;
-	
-left_bracket
-	: '[' { PRINT("["); }
-	;	
-	
-right_bracket
-	: ']' { PRINT("]"); }
 	;
 	
 left_curly
@@ -97,14 +94,17 @@ primary_expression
 	: IDENTIFIER            
 	  { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
 	    if (yychar != '('){ /* not a function call */
-		if (!check_var_declared($1.value)) YYERROR;
-		PRINT("$");        
+		check_var_declared($1.value);
+		$$.type = get_var_type($1.value);
+		PRINT("$");         
 	    }
-	    else /* function call */
+	    else{ /* function call */
 		check_function_declared($1.value);
-	    $$.type = get_type($1.value); 
+		$$.value = strdup($1.value);		
+		$$.type = get_function_type($1.value);
+	    }
             PRINT($1.value); free($1.value); 
-	  }    
+	  } 
 	| constant          				{ $$.type = $1.type; }	    
 	| string					{ $$.type = $1.type; }
 	| '(' expression ')'    			{ $$.type = $2.type; }
@@ -130,13 +130,18 @@ string
 postfix_expression
 	: primary_expression				{ $$.type = $1.type; }
 	| postfix_expression '[' { PRINT("["); } expression ']' { PRINT("]"); } 
-	  {	if ($4.type==INTEGER) 
+	  {	if (IS_ARRAY($1.type)) ARRAY_BASIC_TYPE($1.type);
+		if ($4.type==INTEGER) 
 			$$.type=$1.type;
 	   	 else 
 			$$.type=ERROR_TIPO; 
 	  }
 	| postfix_expression '(' { PRINT("("); } ')' { PRINT(")"); } 				
-	| postfix_expression '(' { PRINT("("); } argument_expression_list ')' { PRINT(")"); }
+	| postfix_expression '(' { PRINT("("); } argument_expression_list ')' 
+	    { PRINT(")");
+	      function_type_check($1.value, get_buffer_content($4.buffer));
+	      free($1.value);
+	      free_buffer($4.buffer); }
 	| postfix_expression '.' IDENTIFIER
 	| postfix_expression PTR_OP IDENTIFIER
 	| postfix_expression INC_OP { PRINT("++"); }
@@ -145,7 +150,10 @@ postfix_expression
 
 argument_expression_list
 	: assignment_expression
+	    { $$.buffer = init_buffer(); buffer_add(&($$.buffer), $1.type); }
+	    	
 	| argument_expression_list ',' { PRINT(","); } assignment_expression
+	    { $$.buffer = $1.buffer; buffer_add(&($$.buffer), $4.type); }
 	;
 
 unary_expression
@@ -174,39 +182,19 @@ cast_expression
 multiplicative_expression
 	: cast_expression 				{ $$.type = $1.type; }
 	| multiplicative_expression '*' { PRINT("*"); } cast_expression 
-	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
-		$$.type = $1.type;
-	    else $$.type = 
-		ERROR_TIPO; 
-	   }
+	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
 	| multiplicative_expression '/' { PRINT("/"); } cast_expression
-	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
-		$$.type = $1.type;
-	    else 
-		$$.type = ERROR_TIPO; 
-	  }
+	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
 	| multiplicative_expression '%' { PRINT("%"); } cast_expression
-	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
-		$$.type = $1.type;
-	    else 
-		$$.type = ERROR_TIPO; 
-	  }
+	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
 	;
 
 additive_expression
 	: multiplicative_expression 			{ $$.type = $1.type; }
 	| additive_expression '+' { PRINT("+"); } multiplicative_expression
-	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
-		$$.type = $1.type;
-	    else 
-		$$.type = ERROR_TIPO; 
-	  }
+	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
 	| additive_expression '-' { PRINT("-"); } multiplicative_expression
-	  { if ($1.type==$4.type && ($1.type==INTEGER || $1.type==REAL)) 
-		$$.type = $1.type;
-	    else 
-		$$.type = ERROR_TIPO; 
-	  }
+	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
 	;
 
 shift_expression
@@ -262,11 +250,7 @@ conditional_expression
 assignment_expression
 	: conditional_expression 			{ $$.type = $1.type; }
 	| unary_expression assignment_operator assignment_expression 
-	 { if ($1.type == $3.type) 
-		$$.type = VACIO;
-	   else 
-		$$.type = ERROR_TIPO; 
-	 }
+	 { $$.type = type_check($1.type, $3.type, ASSIGNMENT); }
 	;
 
 assignment_operator
@@ -285,11 +269,8 @@ assignment_operator
 
 expression
 	: assignment_expression 			{ $$.type = $1.type; }
-	| expression ',' { PRINT(","); } assignment_expression 
-	  { if ($1.type != ERROR_TIPO && $4.type != ERROR_TIPO ) 
-		$$.type = VACIO;
-	    else $$.type = ERROR_TIPO; 
-	  }
+	| expression ',' { PRINT(","); } assignment_expression 	
+	  { $$.type = type_check($1.type, $4.type, EXPRESSION); }
 	;
 
 constant_expression
@@ -315,21 +296,15 @@ declaration_specifiers
 init_declarator_list
 	: init_declarator 				{ $$.type = $1.type; }
 	| init_declarator_list ',' { PRINT(";"); } init_declarator 	
-	  { if ($1.type != ERROR_TIPO && $4.type != ERROR_TIPO ) 
-		$$.type = VACIO;
-	    else 
-		$$.type = ERROR_TIPO; 
-	  }
+	  { $$.type = type_check($1.type, $4.type, EXPRESSION); }
 	;
 
 init_declarator
 	: declarator assign_op initializer  
-	  { if ($1.type == $3.type) 
-		$$.type = VACIO;
-	    else 
-		$$.type = ERROR_TIPO; 
-	  }
-	| declarator
+		{   if (IS_ARRAY($1.type)) ARRAY_BASIC_TYPE($1.type);
+			$$.type = type_check($1.type, $3.type, ASSIGNMENT); }
+	| declarator					
+	  	{$$.type = $1.type;}
 	;
 
 storage_class_specifier
@@ -440,24 +415,21 @@ direct_declarator
 	                            PRINT("function "); /* function */
 	                            last_inserted_function = table_insert($1.value, global_type_specifier, functions_symbol_table);
 	                            begin_local_scope();
+	                            $$.type = get_function_type($1.value); 
 	                          }
 	                          else {
 	                            check_var_redefinition($1.value);
 	                            PRINT("$");                       /* var */
-	                            table_insert($1.value, global_type_specifier, current_scope_symbol_table);
+	                            table_insert($1.value, TYPE(global_type_specifier), current_scope_symbol_table);
+	                            $$.type = get_var_type($1.value);
 	                          }
-	                          //printf("ID: %s, TYPE: %d\n", $1.value, global_type_specifier);
-				  $$.type = get_type($1.value);                         
+	                          //printf("ID: %s, TYPE: %d\n", $1.value, global_type_specifier);                       
 	                          PRINT($1.value); free($1.value); 
 	                        }
 	| direct_declarator '[' ']'
 	| direct_declarator '[' { print_enabled = FALSE; } assignment_expression ']' { print_enabled = TRUE; }
-	| direct_declarator '(' 
-	    { PRINT("("); 
-	      parameter_list_buffer = init_buffer(); } 
-	  parameter_list ')'                   
-	    { PRINT(")"); 
-	    last_inserted_function.input_type = parameter_list_buffer.data; }
+	| direct_declarator '(' { PRINT("("); } 
+	  parameter_list ')'    { PRINT(")"); }
 	| direct_declarator '(' ')' { PRINT("()"); }  
 	;
 
@@ -479,8 +451,8 @@ parameter_list
 	;
 
 parameter_declaration
-	: declaration_specifiers declarator     { buffer_add(&parameter_list_buffer, global_type_specifier); }
-	| declaration_specifiers                { buffer_add(&parameter_list_buffer, global_type_specifier); }
+	: declaration_specifiers declarator     { buffer_add(&last_inserted_function.formal_params, global_type_specifier); }
+	| declaration_specifiers                { buffer_add(&last_inserted_function.formal_params, global_type_specifier); }
 	;
 
 type_name
@@ -501,11 +473,7 @@ maybe_comma
 initializer_list
 	: initializer 					{ $$.type = $1.type; }
 	| initializer_list ',' { PRINT(","); } initializer 
-	  { if ($1.type==$4.type) 
-		$$.type=$1.type; 
-	    else 
-		$$.type=ERROR_TIPO; 
-	  }
+	  { $$.type = type_check($1.type, $4.type, INITIALIZER); }
 	;
 
 statement
@@ -624,7 +592,7 @@ void end_local_scope(){
 
 void check_function_redefinition(char *name){
     if (lookup_string(name, functions_symbol_table)) {
-	param_name = name;
+	error_string = name;
 	error_type = AMBITO;
 	yyerror("intento de redefinir función");
     }
@@ -632,7 +600,7 @@ void check_function_redefinition(char *name){
 
 void check_var_redefinition(char *name){
     if (lookup_string(name, current_scope_symbol_table)) {
-	param_name = name;
+	error_string = name;
 	error_type = AMBITO;
  	yyerror("intento de redefinir variable");
     }
@@ -643,25 +611,115 @@ void check_function_declared(char *name){
         fprintf(stderr, "Cerca de la línea %d: warning: declaración implícita de la función '%s'\n", yylineno, name);
 }
 
-int check_var_declared(char *name){
+void check_var_declared(char *name){
     if ( (!lookup_string(name, current_scope_symbol_table) && current_scope_symbol_table != global_symbol_table)
      &&   !lookup_string(name, global_symbol_table) ) {
-	param_name = name;
+	error_string = name;
 	error_type = AMBITO;
 	yyerror ("variable no declarada");
-	return 0;
-    }
-    return 1; 	
+	
+    }	
 }
 
-int get_type(char *name){
+int get_var_type(char *name){
     list_pointer type;
     if ( (type = lookup_string(name, current_scope_symbol_table)) && current_scope_symbol_table != global_symbol_table)
      	return type->entry.type;
     else if ( (type = lookup_string(name, global_symbol_table)) )
 	return type->entry.type;
     else 
-	return ERROR_TIPO; 	
+	return COMODIN; 	
+}
+
+
+int get_function_type(char *name){
+    list_pointer type;
+    if ( (type = lookup_string(name, functions_symbol_table)) )
+	return type->entry.type;
+    else 
+	return COMODIN; 	
+}
+
+int *get_function_formal_params(char *name){
+    list_pointer entry;
+    if ( (entry = lookup_string(name, functions_symbol_table)) )
+	return get_buffer_content(entry->entry.formal_params);
+    else 
+	return NULL; 	
+}
+
+int type_check(int type1, int type2, int operation){
+		
+	if ( type1 == COMODIN || type2 == COMODIN ) return COMODIN;
+	
+	switch (operation){
+		case ARITHMETIC:	/*Utilizado en: multiplicative_expression, additive_expression*/						
+			if (IS_ARRAY(type1)) ARRAY_BASIC_TYPE(type1);
+			if (IS_ARRAY(type2)) ARRAY_BASIC_TYPE(type2);			
+			if (type1 == type2 && (type1 == INTEGER || type1 == REAL))
+				return type1;
+			else 
+				return ERROR_TIPO;
+			break;
+		case ASSIGNMENT:	/*Utilizado en: assignment_expression, init_declarator*/
+			if (type1 == type2) 
+				return VACIO;	
+			else
+				return ERROR_TIPO; 		
+			break;
+		case INITIALIZER: 	/*Utilizado en: initializer_list*/
+				if (type1 == type2) 
+					return type1; 
+				else 
+					return ERROR_TIPO;	
+				break;
+		case EXPRESSION: 	/*Utilizado en: expression, init_declarator_list*/
+				if (type1 != ERROR_TIPO && type2 != ERROR_TIPO ) 
+					return VACIO;
+	    		else 
+					return ERROR_TIPO; 			
+				break;
+		default:
+				return ERROR_TIPO;
+				break;
+	}
+}
+
+void function_type_check(char *function_name, int *function_actual_params){
+
+    int i;
+    int *function_formal_params;
+    /* printf("\nComprobando tipos de funcion: %s llamada en linea %d\n", function_name, yylineno); */
+    function_formal_params = get_function_formal_params(function_name); /* get formal params de funcion de symbol table */
+    
+    if (function_formal_params == NULL) return; /* no se encontro function en tabla de simbolos, retornar */
+    
+    /* printf("Comparar parametros formales:"); print_buffer(function_formal_params); printf("Con parametros actuales:"); print_buffer(function_actual_params); */
+     
+    for (i = 0;; i++){
+        if (function_formal_params[i] == END_OF_BUFFER && function_actual_params[i] != END_OF_BUFFER){
+            error_type = CANT_ARGS_FUNCION;
+            error_string = function_name;
+            yyerror("Demasiados argumentos para la funcion");
+            return;
+        }
+        else if (function_actual_params[i] == END_OF_BUFFER && function_formal_params[i] != END_OF_BUFFER){
+            error_type = CANT_ARGS_FUNCION;
+            error_string = function_name;
+            yyerror("Muy pocos argumentos en llamada a funcion");
+            return;
+        } else if (function_formal_params[i] == END_OF_BUFFER && function_actual_params[i] == END_OF_BUFFER){
+            return;
+        }
+        else {
+            if (function_formal_params[i] != function_actual_params[i]){
+                error_type = TIPOS_INCOMPATIBLES_FUNCION;
+                error_string = function_name; error_param = i + 1;
+                yyerror("Tipo de argumento incompatible en llamada a funcion");
+            }
+        }
+    }
+                           
 }
 
 int main(){
@@ -695,10 +753,15 @@ int main(){
 void yyerror (const char *message) {
 	switch (error_type){
 		case AMBITO:
-			fprintf(stderr, "Línea %d: error: %s '%s'\n", yylineno, message, param_name);
+		case CANT_ARGS_FUNCION:
+			fprintf(stderr, "Línea %d: error: %s '%s'\n", yylineno, message, error_string);
 			break;
 		case TIPO:
 			fprintf(stderr, "Línea %d: error: %s\n", yylineno, message);
+			break;
+	        case TIPOS_INCOMPATIBLES_FUNCION:
+	                fprintf(stderr, "Línea %d: error: Tipo de argumento incompatible para argumento %d de '%s'\n", 
+	                                 yylineno, error_param, error_string);
 			break;
 		default:
 			fprintf(stderr, "Cerca de la línea %d: error: %s cerca de '%s'\n", yylineno, message, yytext);

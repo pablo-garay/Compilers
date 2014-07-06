@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define CHUNK_SIZE 256
+#define CHUNK_SIZE 8
 #define END_OF_BUFFER -1
 
 

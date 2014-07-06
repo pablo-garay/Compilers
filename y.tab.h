@@ -191,7 +191,7 @@ typedef union YYSTYPE
 {
 
 /* Line 2068 of yacc.c  */
-#line 25 "c-grammar.y"
+#line 31 "c-grammar.y"
 
    attributes attribute;
 

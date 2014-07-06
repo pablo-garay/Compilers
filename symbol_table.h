@@ -1,11 +1,13 @@
 
+#include "int_buffer.h"
+
 #define TABLE_SIZE 7 /* prime number */
 #define IS_FULL(ptr) (!(ptr))
 
 typedef struct {
 	char *name;
 	int type;
-	int *input_type;
+	buffer formal_params;
 } entry_data;
 
 typedef struct node* list_pointer;

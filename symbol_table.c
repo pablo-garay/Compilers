@@ -9,6 +9,7 @@
 #include <string.h>
 #include "utils.h"
 #include "symbol_table.h"
+#include "int_buffer.h"
 
 #define MAX_CHAR 32 /* maximum identifier size */
 //#define TABLE_SIZE 7 /* prime number */
@@ -75,6 +76,7 @@
 //					puts("Encontrado: ");
 //					puts((entry_ptr->entry).name);
 //					printf("Tipo: %d\n", (entry_ptr->entry).type);
+//					printf("Formal Params: "); print_buffer((entry_ptr->entry).formal_params.data);
 //				}
 //				else puts("No encontrado");
 //				// print_hash_table(hash_table, TABLE_SIZE);
@@ -124,6 +126,7 @@ entry_data table_insert(char *name, const int type, list_pointer ht[]){
 
 	ptr->entry.name = strdup(name);
 	ptr->entry.type = type;
+	ptr->entry.formal_params = init_buffer();
 //	ptr->link = NULL; /* para insert al final */
 	ptr->link = lead;
 	ht[hash_value] = ptr;

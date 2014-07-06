@@ -1,0 +1,10 @@
+int main() {
+
+	int a[2] = {1,2}; 	//bien
+	int b;
+	a = {1,2};			//bien, pero sale un error de comprobacion (que tiene sentido)
+	a[0] = 2; 		//bien
+	a = 2; 			//bien
+	b = a[2] + 1; 	//bien
+	b = a + 1;
+}

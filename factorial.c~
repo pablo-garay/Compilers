@@ -1,0 +1,17 @@
+
+
+int factorial()
+{
+    if(n!=1)
+     return n*factorial(n-1);
+}
+
+int main()
+{
+    int n;
+    printf("Enter an positive integer: ");
+    scanf("%d",&n);
+    factorial(factorial(n));
+    return 0;
+}
+
