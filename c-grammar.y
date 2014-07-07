@@ -9,10 +9,10 @@
 	void yyerror (const char *);	
 	void begin_local_scope();
 	void end_local_scope();
-	void check_function_redefinition(char *name);
+	int check_function_redefinition(char *name);
 	void check_function_declared(char *name);
 	void check_var_declared(char *name);
-	void check_var_redefinition(char *name);
+	int check_var_redefinition(char *name);
 	int get_var_type(char *name);
 	int get_function_type(char *name);
 	int type_check(int type1, int type2, int operation);
@@ -92,30 +92,41 @@ assign_op
 
 primary_expression		
 	: IDENTIFIER            
-	  { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
-	    if (yychar != '('){ /* not a function call */
-		check_var_declared($1.value);
-		$$.type = get_var_type($1.value);
-		PRINT("$");         
-	    }
-	    else{ /* function call */
-		check_function_declared($1.value);
-		$$.value = strdup($1.value);		
-		$$.type = get_function_type($1.value);
-	    }
-            PRINT($1.value); free($1.value); 
-	  } 
-	| constant          				{ $$.type = $1.type; }	    
-	| string					{ $$.type = $1.type; }
-	| '(' expression ')'    			{ $$.type = $2.type; }
+	          { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
+	            if (yychar != '('){ /* not a function call */
+		        check_var_declared($1.value);
+		        $$.type = get_var_type($1.value);
+		        PRINT("$");         
+	            }
+	            else { /* function call */
+		        check_function_declared($1.value);
+		        $$.value = strdup($1.value);		
+		        $$.type = get_function_type($1.value);
+	            }
+                    PRINT($1.value); free($1.value); 
+	          }
+	           
+	| constant          				
+	         { $$.type = $1.type; }
+	         	    
+	| string					
+	         { $$.type = $1.type; }
+	         
+	| '(' expression ')'    			
+	         { $$.type = $2.type; }
 	;
 
 constant 
-	: I_CONSTANT					{ PRINT($1.value); free($1.value); } /* includes character_constant */	
-							{ $$.type = INTEGER; }
-	| F_CONSTANT            			{ PRINT($1.value); free($1.value); }
-							{ $$.type = REAL; }
-	| ENUMERATION_CONSTANT				{ $$.type = VACIO; }
+	: I_CONSTANT            
+	        { PRINT($1.value); free($1.value); /* includes character_constant */	
+		$$.type = INTEGER; }
+						  
+	| F_CONSTANT
+	        { PRINT($1.value); free($1.value);
+	          $$.type = REAL; }
+	                                          
+	| ENUMERATION_CONSTANT
+	        { $$.type = VACIO; }
 	;
 
 enumeration_constant		/* before it has been defined as such */
@@ -123,25 +134,38 @@ enumeration_constant		/* before it has been defined as such */
 	;
 	
 string
-	: STRING_LITERAL        			{ PRINT($1.value); free($1.value); } 
-							{ $$.type = CHARACTER; }
+	: STRING_LITERAL        
+	        { PRINT($1.value); free($1.value);
+	          $$.type = CHARACTER; }
 	;
 
 postfix_expression
-	: primary_expression				{ $$.type = $1.type; }
-	| postfix_expression '[' { PRINT("["); } expression ']' { PRINT("]"); } 
-	  {	if (IS_ARRAY($1.type)) ARRAY_BASIC_TYPE($1.type);
-		if ($4.type==INTEGER) 
-			$$.type=$1.type;
-	   	 else 
-			$$.type=ERROR_TIPO; 
-	  }
-	| postfix_expression '(' { PRINT("("); } ')' { PRINT(")"); } 				
-	| postfix_expression '(' { PRINT("("); } argument_expression_list ')' 
-	    { PRINT(")");
-	      function_type_check($1.value, get_buffer_content($4.buffer));
-	      free($1.value);
-	      free_buffer($4.buffer); }
+	: primary_expression				
+	        { $$.type = $1.type; }
+	        
+	| postfix_expression '[' 
+	        { PRINT("["); } 
+	  expression ']' 
+	        { PRINT("]"); 
+	          if (IS_ARRAY($1.type)) ARRAY_BASIC_TYPE($1.type);
+		  if ($4.type == INTEGER) $$.type=$1.type;
+	          else $$.type = ERROR_TIPO; 
+	        }
+	        
+	| postfix_expression '(' 
+	        { PRINT("("); } 
+	  ')' 
+	        { PRINT(")"); }
+	         				
+	| postfix_expression '(' 
+	        { PRINT("("); }	         
+	  argument_expression_list ')'
+                { PRINT(")");
+                  function_type_check($1.value, get_buffer_content($4.buffer));
+                  free($1.value);
+                  free_buffer($4.buffer); 
+                }
+                
 	| postfix_expression '.' IDENTIFIER
 	| postfix_expression PTR_OP IDENTIFIER
 	| postfix_expression INC_OP { PRINT("++"); }
@@ -150,17 +174,29 @@ postfix_expression
 
 argument_expression_list
 	: assignment_expression
-	    { $$.buffer = init_buffer(); buffer_add(&($$.buffer), $1.type); }
+                { $$.buffer = init_buffer(); buffer_add(&($$.buffer), $1.type); }
 	    	
-	| argument_expression_list ',' { PRINT(","); } assignment_expression
-	    { $$.buffer = $1.buffer; buffer_add(&($$.buffer), $4.type); }
+	| argument_expression_list ',' { PRINT(","); } 
+	  assignment_expression        { $$.buffer = $1.buffer; buffer_add(&($$.buffer), $4.type); }
 	;
 
 unary_expression
-	: postfix_expression 				{ $$.type = $1.type; }
-	| INC_OP { PRINT("++"); } unary_expression	{ $$.type = $3.type; }
-	| DEC_OP { PRINT("--"); } unary_expression	{ $$.type = $3.type; }
-	| unary_operator cast_expression		{ $$.type = $2.type; }
+	: postfix_expression
+	        { $$.type = $1.type; }
+	        
+	| INC_OP                
+	        { PRINT("++"); } 
+	  unary_expression	
+	        { $$.type = $3.type; }
+	  
+	| DEC_OP 
+	        { PRINT("--"); } 
+	  unary_expression	
+	        { $$.type = $3.type; }
+	
+	| unary_operator cast_expression
+	        { $$.type = $2.type; }
+	
 	| SIZEOF unary_expression
 	| SIZEOF '(' type_name ')'	
 	;
@@ -180,77 +216,118 @@ cast_expression
 	;
 
 multiplicative_expression
-	: cast_expression 				{ $$.type = $1.type; }
-	| multiplicative_expression '*' { PRINT("*"); } cast_expression 
-	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
-	| multiplicative_expression '/' { PRINT("/"); } cast_expression
-	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
+	: cast_expression 				
+	        { $$.type = $1.type; }
+	        
+	| multiplicative_expression '*' 
+	        { PRINT("*"); }	         
+	  cast_expression 
+	        { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
+	        
+	| multiplicative_expression '/' 
+	        { PRINT("/"); }
+	         
+	  cast_expression
+	        { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
+	        
 	| multiplicative_expression '%' { PRINT("%"); } cast_expression
-	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
+	        { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
 	;
 
 additive_expression
-	: multiplicative_expression 			{ $$.type = $1.type; }
-	| additive_expression '+' { PRINT("+"); } multiplicative_expression
-	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
-	| additive_expression '-' { PRINT("-"); } multiplicative_expression
-	  { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
+	: multiplicative_expression     { $$.type = $1.type; }
+	        
+	| additive_expression '+'       { PRINT("+"); } 
+	  multiplicative_expression     { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
+	        
+	| additive_expression '-'       { PRINT("-"); } 
+	  multiplicative_expression     { $$.type = type_check($1.type, $4.type, ARITHMETIC); }
 	;
 
 shift_expression
-	: additive_expression 				{ $$.type = $1.type; }
-	| shift_expression LEFT_OP { PRINT("<<"); } additive_expression
-	| shift_expression RIGHT_OP { PRINT(">>"); } additive_expression
+	: additive_expression           { $$.type = $1.type; }
+	
+	| shift_expression LEFT_OP      { PRINT("<<"); } 
+	  additive_expression
+	  
+	| shift_expression RIGHT_OP     { PRINT(">>"); } 
+	  additive_expression
 	;
 
 relational_expression
-	: shift_expression 				{ $$.type = $1.type; }
-	| relational_expression '<' { PRINT("<"); } shift_expression
-	| relational_expression '>' { PRINT(">"); } shift_expression
-	| relational_expression LE_OP { PRINT("<="); } shift_expression
-	| relational_expression GE_OP { PRINT(">="); } shift_expression
+	: shift_expression              { $$.type = $1.type; }
+	
+	| relational_expression '<'     { PRINT("<"); } 
+	  shift_expression
+	  
+	| relational_expression '>'     { PRINT(">"); } 
+	  shift_expression
+	  
+	| relational_expression LE_OP   { PRINT("<="); } 
+	  shift_expression
+	  
+	| relational_expression GE_OP   { PRINT(">="); } 
+	  shift_expression
 	;
 
 equality_expression
-	: relational_expression 			{ $$.type = $1.type; }
-	| equality_expression EQ_OP { PRINT("=="); } relational_expression
-	| equality_expression NE_OP { PRINT("!="); } relational_expression
+	: relational_expression         { $$.type = $1.type; }
+	
+	| equality_expression EQ_OP     { PRINT("=="); } 
+	  relational_expression
+	  
+	| equality_expression NE_OP     { PRINT("!="); } 
+	  relational_expression
 	;
 
 and_expression
-	: equality_expression 				{ $$.type = $1.type; }
-	| and_expression '&' { PRINT("&"); } equality_expression
+	: equality_expression           { $$.type = $1.type; }
+	
+	| and_expression '&'            { PRINT("&"); } 
+	  equality_expression
 	;
 
 exclusive_or_expression
-	: and_expression 				{ $$.type = $1.type; }
-	| exclusive_or_expression '^' { PRINT("^"); } and_expression
+	: and_expression                { $$.type = $1.type; }
+	
+	| exclusive_or_expression '^'   { PRINT("^"); } and_expression
 	;
 
 inclusive_or_expression
-	: exclusive_or_expression 			{ $$.type = $1.type; }
-	| inclusive_or_expression '|' { PRINT("|"); } exclusive_or_expression
+	: exclusive_or_expression       { $$.type = $1.type; }
+	
+	| inclusive_or_expression '|'   { PRINT("|"); } 
+	  exclusive_or_expression
 	;
 
 logical_and_expression
-	: inclusive_or_expression 			{ $$.type = $1.type; }
-	| logical_and_expression AND_OP { PRINT("&&"); } inclusive_or_expression
+	: inclusive_or_expression       { $$.type = $1.type; }
+	
+	| logical_and_expression AND_OP { PRINT("&&"); } 
+	  inclusive_or_expression
 	;
 
 logical_or_expression
-	: logical_and_expression 			{ $$.type = $1.type; }
-	| logical_or_expression OR_OP { PRINT("||"); } logical_and_expression
+	: logical_and_expression        { $$.type = $1.type; }
+	
+	| logical_or_expression OR_OP   { PRINT("||"); } 
+	  logical_and_expression
 	;
 
 conditional_expression
-	: logical_or_expression 			{ $$.type = $1.type; }
-	| logical_or_expression '?' { PRINT("?"); } expression ':' { PRINT(":"); } conditional_expression
+	: logical_or_expression         { $$.type = $1.type; }
+	
+	| logical_or_expression '?'     { PRINT("?"); } 
+	  expression ':'                { PRINT(":"); } 
+	  conditional_expression
 	;
 
 assignment_expression
-	: conditional_expression 			{ $$.type = $1.type; }
+	: conditional_expression        
+	        { $$.type = $1.type; }
+	  
 	| unary_expression assignment_operator assignment_expression 
-	 { $$.type = type_check($1.type, $3.type, ASSIGNMENT); }
+	        { $$.type = type_check($1.type, $3.type, ASSIGNMENT); }
 	;
 
 assignment_operator
@@ -268,9 +345,10 @@ assignment_operator
 	;
 
 expression
-	: assignment_expression 			{ $$.type = $1.type; }
-	| expression ',' { PRINT(","); } assignment_expression 	
-	  { $$.type = type_check($1.type, $4.type, EXPRESSION); }
+	: assignment_expression         { $$.type = $1.type; }
+	
+	| expression ','                { PRINT(","); } 
+	  assignment_expression         { $$.type = type_check($1.type, $4.type, EXPRESSION); }
 	;
 
 constant_expression
@@ -278,8 +356,11 @@ constant_expression
 	;
 
 declaration
-	: declaration_specifiers ';' { PRINT(";"); }
-	| declaration_specifiers init_declarator_list ';' { PRINT(";"); } { $$.type = $2.type; }
+	: declaration_specifiers ';'
+	        { PRINT(";"); }
+	        
+	| declaration_specifiers init_declarator_list ';' 
+	        { PRINT(";"); } { $$.type = $2.type; }
 	;
 
 declaration_specifiers
@@ -294,15 +375,17 @@ declaration_specifiers
 	;
 
 init_declarator_list
-	: init_declarator 				{ $$.type = $1.type; }
-	| init_declarator_list ',' { PRINT(";"); } init_declarator 	
-	  { $$.type = type_check($1.type, $4.type, EXPRESSION); }
+	: init_declarator               { $$.type = $1.type; }
+	
+	| init_declarator_list ','      { PRINT(";"); } 
+	  init_declarator               { $$.type = type_check($1.type, $4.type, EXPRESSION); }
 	;
 
 init_declarator
 	: declarator assign_op initializer  
 		{   if (IS_ARRAY($1.type)) ARRAY_BASIC_TYPE($1.type);
 			$$.type = type_check($1.type, $3.type, ASSIGNMENT); }
+			
 	| declarator					
 	  	{$$.type = $1.type;}
 	;
@@ -317,13 +400,13 @@ storage_class_specifier
 	;
 
 type_specifier
-	: VOID		{ global_type_specifier = VOID; }		{ $$.type = VOID; }
-	| CHAR          { global_type_specifier = CHARACTER; }		{ $$.type = CHARACTER; }
-	| SHORT         { global_type_specifier = INTEGER; }		{ $$.type = INTEGER; }
-	| INT           { global_type_specifier = INTEGER; }		{ $$.type = INTEGER; }
-	| LONG          { global_type_specifier = INTEGER; }		{ $$.type = INTEGER; }
-	| FLOAT         { global_type_specifier = REAL; }		{ $$.type = REAL; }
-	| DOUBLE        { global_type_specifier = REAL; }		{ $$.type = REAL; }
+	: VOID		{ global_type_specifier = VOID;         $$.type = VOID; }
+	| CHAR          { global_type_specifier = CHARACTER;    $$.type = CHARACTER; }
+	| SHORT         { global_type_specifier = INTEGER;      $$.type = INTEGER; }
+	| INT           { global_type_specifier = INTEGER;      $$.type = INTEGER; }
+	| LONG          { global_type_specifier = INTEGER;      $$.type = INTEGER; }
+	| FLOAT         { global_type_specifier = REAL;         $$.type = REAL; }
+	| DOUBLE        { global_type_specifier = REAL;         $$.type = REAL; }
 	| SIGNED
 	| UNSIGNED
 	| struct_or_union_specifier
@@ -337,8 +420,8 @@ struct_or_union_specifier
 	;
 
 struct_or_union
-	: STRUCT							{ $$.type = VACIO; }
-	| UNION								{ $$.type = VACIO; }
+	: STRUCT                { $$.type = VACIO; }
+	| UNION                 { $$.type = VACIO; }
 	;
 
 struct_declaration_list
@@ -353,14 +436,18 @@ struct_declaration
 
 specifier_qualifier_list
 	: type_specifier specifier_qualifier_list		
-	  { if ($1.type==$2.type ) 
-		$$.type = $1.type;
-	    else 
-		$$.type = ERROR_TIPO; 
-	  }
-	| type_specifier				{ $$.type = $1.type; }
-	| type_qualifier specifier_qualifier_list	{ $$.type = VACIO; }
-	| type_qualifier				{ $$.type = VACIO; }
+                { if ($1.type==$2.type ) $$.type = $1.type;
+                  else  $$.type = ERROR_TIPO; 
+                }
+	          
+	| type_specifier				
+	        { $$.type = $1.type; }
+	        
+	| type_qualifier specifier_qualifier_list	
+	        { $$.type = VACIO; }
+	        
+	| type_qualifier				
+	        { $$.type = VACIO; }
 	;
 
 struct_declarator_list
@@ -404,33 +491,41 @@ function_specifier
 	;
 
 declarator
-	: pointer direct_declarator 			{ $$.type = $2.type; }
-	| direct_declarator 				{ $$.type = $1.type; }
+	: pointer direct_declarator             { $$.type = $2.type; }
+	| direct_declarator                     { $$.type = $1.type; }
 	;
 
 direct_declarator
-	: IDENTIFIER            { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
-	                          if (yychar == '('){
-	                            check_function_redefinition($1.value);	                            
-	                            PRINT("function "); /* function */
-	                            last_inserted_function = table_insert($1.value, global_type_specifier, functions_symbol_table);
-	                            begin_local_scope();
-	                            $$.type = get_function_type($1.value); 
-	                          }
-	                          else {
-	                            check_var_redefinition($1.value);
-	                            PRINT("$");                       /* var */
-	                            table_insert($1.value, TYPE(global_type_specifier), current_scope_symbol_table);
-	                            $$.type = get_var_type($1.value);
-	                          }
-	                          //printf("ID: %s, TYPE: %d\n", $1.value, global_type_specifier);                       
-	                          PRINT($1.value); free($1.value); 
-	                        }
+	: IDENTIFIER            
+	        { if (yychar == YYEMPTY) yychar = YYLEX; /* yychar = lookahead token */
+                  if (yychar == '('){
+                    if (!check_function_redefinition($1.value)) /* si no esta redefinida, insertar en symbol table */
+                        last_inserted_function = table_insert($1.value, global_type_specifier, functions_symbol_table);
+                    else
+                        last_inserted_function.name = NULL;
+                    PRINT("function "); /* function */
+                    begin_local_scope();
+                    $$.type = get_function_type($1.value); 
+                  }
+                  else {
+                    if (!check_var_redefinition($1.value)) /* si no esta en symbol table, insertar  */
+                        table_insert($1.value, TYPE(global_type_specifier), current_scope_symbol_table);
+                    PRINT("$"); /* var */
+                    $$.type = get_var_type($1.value);
+                  }
+                  //printf("ID: %s, TYPE: %d\n", $1.value, global_type_specifier);                       
+                  PRINT($1.value); free($1.value); 
+                }
+                
 	| direct_declarator '[' ']'
-	| direct_declarator '[' { print_enabled = FALSE; } assignment_expression ']' { print_enabled = TRUE; }
-	| direct_declarator '(' { PRINT("("); } 
-	  parameter_list ')'    { PRINT(")"); }
-	| direct_declarator '(' ')' { PRINT("()"); }  
+	
+	| direct_declarator '['         { print_enabled = FALSE; } 
+	  assignment_expression ']'     { print_enabled = TRUE; }
+	  
+	| direct_declarator '('         { PRINT("("); } 
+	  parameter_list ')'            { PRINT(")"); }
+	  
+	| direct_declarator '(' ')'     { PRINT("()"); }  
 	;
 
 pointer
@@ -447,22 +542,31 @@ type_qualifier_list
 
 parameter_list
 	: parameter_declaration
-	| parameter_list ',' { PRINT(","); } parameter_declaration
+	| parameter_list ','            { PRINT(","); } 
+	  parameter_declaration
 	;
 
 parameter_declaration
-	: declaration_specifiers declarator     { buffer_add(&last_inserted_function.formal_params, global_type_specifier); }
-	| declaration_specifiers                { buffer_add(&last_inserted_function.formal_params, global_type_specifier); }
+	: declaration_specifiers declarator     
+	        { if (last_inserted_function.name != NULL) 
+	          buffer_add(&last_inserted_function.formal_params, global_type_specifier); }
+	          
+	| declaration_specifiers                
+	        { if (last_inserted_function.name != NULL) 
+	          buffer_add(&last_inserted_function.formal_params, global_type_specifier); }
 	;
 
 type_name
-	: specifier_qualifier_list			{ $$.type = $1.type; }
+	: specifier_qualifier_list      { $$.type = $1.type; }
 	;
 
 initializer
-	: '{' { PRINT("array("); } initializer_list maybe_comma '}' { PRINT(")"); } 
-							{ $$.type = $3.type; } 
-	| assignment_expression 			{ $$.type = $1.type; }
+	: '{'                                   { PRINT("array("); } 
+	  initializer_list maybe_comma '}'      { PRINT(")");
+	                                          $$.type = $3.type; 
+	                                        }
+	           
+	| assignment_expression                 { $$.type = $1.type; }
 	;
 	
 maybe_comma
@@ -471,24 +575,33 @@ maybe_comma
     	;
 
 initializer_list
-	: initializer 					{ $$.type = $1.type; }
-	| initializer_list ',' { PRINT(","); } initializer 
-	  { $$.type = type_check($1.type, $4.type, INITIALIZER); }
+	: initializer           { $$.type = $1.type; }
+	
+	| initializer_list ','  { PRINT(","); } 
+	  initializer           { $$.type = type_check($1.type, $4.type, INITIALIZER); }
 	;
 
 statement
-	: labeled_statement				{ $$.type = VACIO; }
-	| compound_statement				{ $$.type = VACIO; }
-	| expression_statement 				{ $$.type = $1.type; } 
-	| selection_statement   			{ $$.type = VACIO; }
-	| iteration_statement   			{ $$.type = VACIO; }
-	| jump_statement				{ $$.type = VACIO; }
+	: labeled_statement             { $$.type = VACIO; }
+	| compound_statement		{ $$.type = VACIO; }
+	| expression_statement 		{ $$.type = $1.type; } 
+	| selection_statement   	{ $$.type = VACIO; }
+	| iteration_statement   	{ $$.type = VACIO; }
+	| jump_statement		{ $$.type = VACIO; }
 	;
 
 labeled_statement
 	: IDENTIFIER ':' statement
-	| CASE { PRINT("case"); } constant_expression ':' { PRINT(":"); } statement
-	| DEFAULT ':' { PRINT("default:"); } statement
+	
+	| CASE 
+	        { PRINT("case"); } 
+	  constant_expression ':' 
+	        { PRINT(":"); } 
+	  statement
+	        
+	| DEFAULT ':' 
+	        { PRINT("default:"); } 
+	  statement
 	;
 
 compound_statement
@@ -504,44 +617,59 @@ block_item_list
 
 block_item
 	: declaration 					
-	  { $$.type = $1.type;
-	    if ($$.type==ERROR_TIPO){ 
-		error_type = TIPO;
-		yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 	  	
-	    }
-	  }
+	          { $$.type = $1.type;
+	            if ($$.type==ERROR_TIPO){ 
+		        error_type = TIPO;
+		        yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 	  	
+	            }
+	          }
+	  
 	| statement 					
-	  { $$.type = $1.type; 
-	    if ($$.type==ERROR_TIPO){ 
-		error_type = TIPO;		
-		yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 
-	    }
-	  }
+	          { $$.type = $1.type; 
+	            if ($$.type==ERROR_TIPO){ 
+		        error_type = TIPO;		
+		        yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 
+	            }
+	          }
 	;
 
 expression_statement
-	: ';' { PRINT(";"); } 
-	| expression ';' { PRINT(";"); } 		{ $$.type = $1.type; } 
+	: ';'            { PRINT(";"); } 
+	| expression ';' { PRINT(";"); $$.type = $1.type; } 
 	;
 	
 if
-	: IF { PRINT("if"); }
+	: IF             { PRINT("if"); }
     	;	
 
 selection_statement
-	: if left_parenthesis expression right_parenthesis statement ELSE { PRINT("else"); } statement
+	: if left_parenthesis expression right_parenthesis statement ELSE 
+	        { PRINT("else"); } 
+	  statement
+	  
 	| if left_parenthesis expression right_parenthesis statement
-	| SWITCH { PRINT("switch"); } left_parenthesis expression right_parenthesis statement
+	
+	| SWITCH 
+	        { PRINT("switch"); } 
+	  left_parenthesis expression right_parenthesis statement
 	;
 
 for
-	: FOR { PRINT("for"); }
+	: FOR   { PRINT("for"); }
 	;
 	
 iteration_statement
-	: WHILE { PRINT("while"); } left_parenthesis expression right_parenthesis  
-	| DO { PRINT("do"); } statement WHILE { PRINT("while"); } left_parenthesis expression right_parenthesis 
-	  ';' { PRINT(";"); }
+	: WHILE 
+	        { PRINT("while"); } 
+	  left_parenthesis expression right_parenthesis
+	    
+	| DO 
+	        { PRINT("do"); } 
+	  statement WHILE 
+	        { PRINT("while"); } 
+	  left_parenthesis expression right_parenthesis ';' 
+	        { PRINT(";"); }
+	        
 	| for left_parenthesis expression_statement expression_statement right_parenthesis statement
 	| for left_parenthesis expression_statement expression_statement expression right_parenthesis statement
 	| for left_parenthesis declaration expression_statement right_parenthesis statement
@@ -553,7 +681,8 @@ jump_statement
 	| CONTINUE ';'                  { PRINT("continue;"); }
 	| BREAK ';'                     { PRINT("break;"); }
 	| RETURN ';'                    { PRINT("return;"); }
-	| RETURN { PRINT("return "); } expression ';' { PRINT(";"); }
+	| RETURN                        { PRINT("return "); } 
+	  expression ';'                { PRINT(";"); }
 	;
 
 translation_unit
@@ -565,16 +694,16 @@ translation_unit
 external_declaration
 	: function_definition
 	| declaration 
-	  { $$.type = $1.type; 
-	    if ($$.type==ERROR_TIPO){ 
-		error_type = TIPO;		
-		yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 
-	    }
-	  }
+                { $$.type = $1.type; 
+                        if ($$.type == ERROR_TIPO){ 
+                                error_type = TIPO;		
+                                yyerror("Comprobacion de Tipos: Tipos incompatibles en la expresion"); 
+                        }
+                }
 	;
 
 function_definition
-	: declaration_specifiers declarator compound_statement                  { end_local_scope(); } 
+	: declaration_specifiers declarator compound_statement  { end_local_scope(); } 
 	;
 
 %%
@@ -590,20 +719,24 @@ void end_local_scope(){
     current_scope_symbol_table = global_symbol_table; /* current scope = GLOBAL */     
 }
 
-void check_function_redefinition(char *name){
+int check_function_redefinition(char *name){
     if (lookup_string(name, functions_symbol_table)) {
 	error_string = name;
 	error_type = AMBITO;
 	yyerror("intento de redefinir función");
+	return 1;
     }
+    return 0;
 }
 
-void check_var_redefinition(char *name){
+int check_var_redefinition(char *name){
     if (lookup_string(name, current_scope_symbol_table)) {
 	error_string = name;
 	error_type = AMBITO;
  	yyerror("intento de redefinir variable");
+ 	return 1;
     }
+    return 0;
 }
 
 void check_function_declared(char *name){
@@ -653,6 +786,7 @@ int type_check(int type1, int type2, int operation){
 	if ( type1 == COMODIN || type2 == COMODIN ) return COMODIN;
 	
 	switch (operation){
+	
 		case ARITHMETIC:	/*Utilizado en: multiplicative_expression, additive_expression*/						
 			if (IS_ARRAY(type1)) ARRAY_BASIC_TYPE(type1);
 			if (IS_ARRAY(type2)) ARRAY_BASIC_TYPE(type2);			
@@ -661,27 +795,30 @@ int type_check(int type1, int type2, int operation){
 			else 
 				return ERROR_TIPO;
 			break;
+			
 		case ASSIGNMENT:	/*Utilizado en: assignment_expression, init_declarator*/
 			if (type1 == type2) 
 				return VACIO;	
 			else
 				return ERROR_TIPO; 		
 			break;
+			
 		case INITIALIZER: 	/*Utilizado en: initializer_list*/
-				if (type1 == type2) 
-					return type1; 
-				else 
-					return ERROR_TIPO;	
-				break;
+			if (type1 == type2) 
+				return type1; 
+			else 
+				return ERROR_TIPO;	
+			break;
+				
 		case EXPRESSION: 	/*Utilizado en: expression, init_declarator_list*/
-				if (type1 != ERROR_TIPO && type2 != ERROR_TIPO ) 
-					return VACIO;
-	    		else 
-					return ERROR_TIPO; 			
-				break;
+                        if (type1 != ERROR_TIPO && type2 != ERROR_TIPO ) 
+	                        return VACIO;
+                        else 
+	                        return ERROR_TIPO; 			
+                        break;
 		default:
-				return ERROR_TIPO;
-				break;
+			return ERROR_TIPO;
+			break;
 	}
 }
 
