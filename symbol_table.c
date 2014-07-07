@@ -208,6 +208,7 @@ void free_table(hash_table_type hashtable)
             temp = list;
             list = list->link;
             free(temp->entry.name);
+            free_buffer(temp->entry.formal_params); /* free formal params buffer */
             free(temp);
         }
     }

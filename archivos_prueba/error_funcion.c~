@@ -1,0 +1,37 @@
+
+
+int factorial(int n)
+{
+    if(n!=1)
+     return n*factorial(n-1);
+}
+
+
+int mult (int x, int y)
+{
+  return x * y;
+}
+
+
+int main()
+{
+    int n;
+    int vector[10];
+    char vector2[] = {"1", "2", "3"};
+    
+    
+    printf("Enter an positive integer: ");
+    n = 5;
+    
+    /*  */
+    factorial(vector, 2, 3);
+    
+    /*  */
+    factorial();
+    
+    /* Tipo de argumento incompatible para argumento 1 de 'factorial' */
+    mult(factorial(vector), 2);;
+    
+    return 0;
+}
+

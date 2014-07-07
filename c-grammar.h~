@@ -10,8 +10,9 @@ typedef enum {FALSE, TRUE} boolean;
 #define PRINT(X) if (print_enabled) fputs (X, pFile)
 #define FILENAME "myfile.php"
 #define IS_ARRAY(X) (X == ARRAY_INT || X == ARRAY_REAL || X == ARRAY_CHAR) ? TRUE : FALSE
-#define ARRAY(X) X += ARRAY_INT - INTEGER
+#define ARRAY(X) X + ARRAY_INT - INTEGER
 #define ARRAY_BASIC_TYPE(X) X -= ARRAY_INT - INTEGER
+#define TYPE(X) (yychar == '[') ? ARRAY(X) : X
 
 /*Para comprobacion de tipos*/
 enum {ERROR_TIPO, VACIO, INTEGER, REAL, CHARACTER, ARRAY_INT, ARRAY_REAL, ARRAY_CHAR, COMODIN};

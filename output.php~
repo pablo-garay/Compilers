@@ -1,0 +1,38 @@
+<?php
+
+
+
+ function factorial( $n)
+{
+    if($n!=1)
+      return $n*factorial($n-1);
+}
+
+
+  function mult( $x,  $y)
+{
+   return  $x* $y;
+}
+
+
+ function main()
+{
+     $n;
+     $vector = array(1 ,2 ,3);
+    
+    
+    mult($vector[1], $vector[2]);
+    
+    
+    mult(factorial($vector[1]), factorial($vector[0]));
+    
+    
+    factorial(mult(factorial($vector[1]), factorial($vector[0])));
+    
+    
+     return 0;
+}
+
+
+
+?>

@@ -155,16 +155,21 @@ postfix_expression
 	| postfix_expression '(' 
 	        { PRINT("("); } 
 	  ')' 
-	        { PRINT(")"); }
+	        { PRINT(")");
+	          $1.buffer = init_buffer();
+	          function_type_check($1.value, get_buffer_content($1.buffer));
+              free($1.value);
+              free_buffer($1.buffer); 
+            }
 	         				
 	| postfix_expression '(' 
 	        { PRINT("("); }	         
 	  argument_expression_list ')'
-                { PRINT(")");
-                  function_type_check($1.value, get_buffer_content($4.buffer));
-                  free($1.value);
-                  free_buffer($4.buffer); 
-                }
+            { PRINT(")");
+              function_type_check($1.value, get_buffer_content($4.buffer));
+              free($1.value);
+              free_buffer($4.buffer); 
+            }
                 
 	| postfix_expression '.' IDENTIFIER
 	| postfix_expression PTR_OP IDENTIFIER
@@ -859,9 +864,11 @@ void function_type_check(char *function_name, int *function_actual_params){
                            
 }
 
-int main(){
+int main(int argc, char *argv[]){
     
-    pFile = fopen (FILENAME , "w");
+    if (argc != 2) pFile = fopen (FILENAME , "w");
+    else pFile = fopen (argv[1] , "w");
+    
     if (pFile == NULL) perror ("Error al abrir el archivo");
     fputs ("<?php\n\n", pFile);
     
@@ -879,7 +886,7 @@ int main(){
 		  	perror( "Error al intentar eliminar el archivo" );
   		else
   		    printf("%d errores detectados\n", errors);
-            puts( "No se generará traducción. Archivo eliminado exitosamente" );		
+            puts( "El archivo contiene errores. No se generará traducción" );		
 	}
 	
 	free_table(global_symbol_table); /* liberar memoria */
@@ -896,10 +903,10 @@ void yyerror (const char *message) {
 		case TIPO:
 			fprintf(stderr, "Línea %d: error: %s\n", yylineno, message);
 			break;
-	        case TIPOS_INCOMPATIBLES_FUNCION:
-	                fprintf(stderr, "Línea %d: error: Tipo de argumento incompatible para argumento %d de '%s'\n", 
-	                                 yylineno, error_param, error_string);
-			break;
+        case TIPOS_INCOMPATIBLES_FUNCION:
+            fprintf(stderr, "Línea %d: error: Tipo de argumento incompatible para argumento %d de '%s'\n", 
+                             yylineno, error_param, error_string);
+	        break;
 		default:
 			fprintf(stderr, "Cerca de la línea %d: error: %s cerca de '%s'\n", yylineno, message, yytext);
 			break;	

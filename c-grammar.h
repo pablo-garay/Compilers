@@ -8,7 +8,7 @@
 typedef enum {FALSE, TRUE} boolean;
 
 #define PRINT(X) if (print_enabled) fputs (X, pFile)
-#define FILENAME "myfile.php"
+#define FILENAME "output.php"
 #define IS_ARRAY(X) (X == ARRAY_INT || X == ARRAY_REAL || X == ARRAY_CHAR) ? TRUE : FALSE
 #define ARRAY(X) X + ARRAY_INT - INTEGER
 #define ARRAY_BASIC_TYPE(X) X -= ARRAY_INT - INTEGER
